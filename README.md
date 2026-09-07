@@ -74,6 +74,9 @@ http://localhost:8080/api/settings                       GET, or POST {"maxCats"
 - `!cat [color] [pattern] [hat] [size] eyes <color>` — spawn or restyle; sizes `kitten skinny adult fat`
 - `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !stalk !lick !leave`
 - `!join` — enter the cat race while the window is open
+- `!name Biscuit` — name your cat (tag shows it; `!pet @biscuit` and `!pet @yourusername` both work) · `!name` resets
+- `!afk` — your cat curls up in a free box or a back corner until your next command · `!follow @name` — tag along with someone for a minute
+- Regulars who come back after a day get a welcome from their cat
 - `!pet @name` — walk over and nuzzle · `!tackle @name` — pick a fight · `!stalk [@name]` — creep up and pounce
 
 Props: food bowl, water, scratch post, ball, cardboard box (cats climb in, peek out, and sometimes lie in wait to swipe at whoever walks past — which can start a fight), perch (cats hop up and lounge). Each cat also has a fixed sleeping style: loaf, on its side, or belly-up.

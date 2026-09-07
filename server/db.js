@@ -17,6 +17,7 @@ export function openDb(path) {
     ON CONFLICT(key) DO UPDATE SET name=excluded.name, look=excluded.look, last=excluded.last`);
   const touchCat = db.prepare(`UPDATE cats SET last=? WHERE key=?`);
   const delCat = db.prepare(`DELETE FROM cats WHERE key=?`);
+  const getCat = db.prepare(`SELECT key,name,look,last FROM cats WHERE key=?`);
   const recentCats = db.prepare(`SELECT key,name,look,last FROM cats WHERE last>? ORDER BY last DESC LIMIT ?`);
   const getKv = db.prepare(`SELECT v FROM kv WHERE k=?`);
   const setKv = db.prepare(`INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`);
@@ -25,6 +26,7 @@ export function openDb(path) {
     saveCat(key, name, look) { upsertCat.run(key, name, JSON.stringify(look), Date.now()); },
     touchCat(key) { touchCat.run(Date.now(), key); },
     deleteCat(key) { delCat.run(key); },
+    getCat(key) { const r = getCat.get(key); return r ? { ...r, look: JSON.parse(r.look) } : null; },
     recentCats(maxAgeMs, limit) {
       return recentCats.all(Date.now() - maxAgeMs, limit).map(r => ({ ...r, look: JSON.parse(r.look) }));
     },

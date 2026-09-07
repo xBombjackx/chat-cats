@@ -71,8 +71,9 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
     lastCmd.set(key, now);
   }
   if (lastCmd.size > 5000) for (const [k, t] of lastCmd) if (now - t > 60e3) lastCmd.delete(k);
+  const prev = db.getCat(key), away = prev ? now - prev.last : 0;   // so the overlay can welcome regulars back
   db.touchCat(key);
-  broadcast({ type: 'chat', platform, user, key, msg }, 'overlay');
+  broadcast({ type: 'chat', platform, user, key, msg, away }, 'overlay');
   broadcast({ type: 'log', platform, user, msg }, 'admin');
 }
 function fireEvent(name, by = 'admin', args = {}) {

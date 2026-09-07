@@ -101,6 +101,10 @@ class Cat {
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
   walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2*this.T.speed; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
+  setName(n){ this.name=n; this.tag.textContent=this.afk?n+' 💤':n; }
+  setAfk(on){ this.afk=on; this.tag.textContent=on?this.name+' 💤':this.name; if(!on){ if(this.onProp) this.dismount(); else this.giveUp(); return; }
+    this.following=null; this.giveUp(); this.say(pick(['brb','💤','afk'])); const bx=props.find(p=>p.type==='box'&&p.users<1);
+    if(bx){ this.goTo(bx); } else { const side=this.g.position.x<0?-1:1; this.walkTo(side*(XMAX-1), ZMIN+rnd(0.5,1.5), 2.5); this.onArrive=()=>{ this.setState('sleep'); this.timer=30; }; } }
   hopTo(x,z,y,into){ const from={x:this.g.position.x,z:this.g.position.z,y:this.elev}; this.play('hop',0.6,true); this.anim.from=from; this.anim.to={x,z,y,into:!!into}; }
   dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
   dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
@@ -237,6 +241,10 @@ class Cat {
       if(buddy && p.users<3 && Math.random()<0.6) setTimeout(()=>{ if(!buddy.dead&&!buddy.prop&&buddy.state==='idle'&&p.mesh.parent){ buddy.say(pick(['ooh','me too!','!'])); buddy.goTo(p); } }, 500); }
   }
   pickIdle(){
+    if(this.afk){ if(!this.onProp && this.state!=='sleep'){ this.setState('sleep'); } this.timer=30; if(this.onProp){ this.hiding=false; this.setState('sleep'); } return; }   // parked until they type again
+    if(this.following){ const f=this.following; if(f.cat.dead||performance.now()>f.until){ this.following=null; } else { const o=f.cat, dx=this.g.position.x-o.g.position.x, dz=this.g.position.z-o.g.position.z, d=Math.hypot(dx,dz)||1;
+      if(d>2.4){ this.walkTo(o.g.position.x+dx/d*1.7, o.g.position.z+dz/d*1.7, Math.max(2.5,o.speed||2.5)); this.onArrive=()=>{ this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.timer=rnd(0.5,1.5); }; }
+      else { this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.setState('sit'); this.timer=rnd(1,2); } return; } }
     if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
       const r=Math.random();
       if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.25+0.35*this.T.ambush){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
@@ -288,19 +296,23 @@ const labels = document.getElementById('labels');
 const log = document.getElementById('log');
 const net = { send(){} };   // replaced by net.js when the server is around
 function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span><span style="opacity:.6"></span>`; const [m,n]=d.querySelectorAll('span'); d.querySelector('b').textContent=user; m.textContent=msg; n.textContent=note?` — ${note}`:''; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
-function findCat(name){ name=name.toLowerCase(); for(const c of cats.values()) if(c.name.toLowerCase()===name) return c; return null; }
+function findCat(name){ name=name.toLowerCase(); if(!name) return null; for(const c of cats.values()) if(c.name.toLowerCase()===name||c.key.split(':')[1]===name) return c;
+  const pre=[...cats.values()].filter(c=>c.name.toLowerCase().startsWith(name)||c.key.split(':')[1].startsWith(name)); return pre.length===1?pre[0]:null; }   // unique prefix is fine too ("@sir" for "Sir Biscuit")
 function removeCat(cat){ cat.remove(); cats.delete(cat.key); }
 function spawnCat(key, name, look, quiet){
   if(!PLAY && cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||(c.visitor&&!old.visitor)||(c.visitor===old.visitor&&c.last<old.last)) old=c; if(old){ old.say('bye'); removeCat(old); } }   // evict: raid visitors first, then least recently active
   const cat=new Cat(key, name, look); cats.set(key,cat); if(!quiet) cat.say('hi!'); return cat;
 }
 
-function handleChat(user, msg, key){
+function handleChat(user, msg, key, away){
   key = key || 'sim:'+user.toLowerCase();
   msg = msg.trim(); if(!msg.startsWith('!')) return;
+  const raw = msg.slice(1).split(/\s+/); raw.shift();
   const parts = msg.slice(1).toLowerCase().split(/\s+/); const cmd = parts.shift(); let note='';
   let cat = cats.get(key);
   if(cat) cat.last=performance.now();
+  if(cat && cat.afk){ cat.setAfk(false); cat.say(pick(['back!','o/','👋'])); }
+  const welcome = away>20*3600e3;   // long time no see — greeted after the command's own bubble, also when the cat is respawning via !cat
   if(cmd==='cat'){
     const look = cat ? {...cat.look} : {};
     for(let i=0;i<parts.length;i++){ const p=parts[i];
@@ -311,6 +323,9 @@ function handleChat(user, msg, key){
     net.send({type:'cat', key, name:user, look:cat.look});
   } else if(!cat){ note='no cat yet — use !cat'; }
   else if(cmd==='join') note=race.join(cat);
+  else if(cmd==='name'){ const n=raw.join(' ').replace(/[<>]/g,'').trim().slice(0,20); cat.setName(n||user); net.send({type:'cat', key, name:cat.name, look:cat.look}); note='named '+cat.name; }
+  else if(cmd==='afk'){ cat.setAfk(true); note='afk'; }
+  else if(cmd==='follow'){ const who=(parts[0]||'').replace(/^@/,''); const other=who?findCat(who):null; if(!who){ cat.following=null; note='stopped following'; } else if(!other||other===cat) note='who? try !follow @name'; else { cat.following={cat:other, until:performance.now()+60000}; cat.say(pick(['👀','coming!','wait up'])); cat.giveUp(); cat.timer=0.2; note='following '+other.name; } }
   else if(cmd==='lick') cat.play(pick(['lickfoot','lickbutt']),1.9);
   else if(cmd==='meow') cat.say(pick(['meow','mrrp','meow~','MEOW','mrow?','prrr']));
   else if(cmd==='jump') cat.jump();
@@ -335,6 +350,7 @@ function handleChat(user, msg, key){
       cat.onArrive=()=>{ cat.facing=side<0?0:Math.PI; other.facing=side<0?Math.PI:0; cat.play('nuzzle',1.4); other.play('nuzzle',1.4); cat.say('💕'); setTimeout(()=>other.say('💕'),300); setTimeout(()=>{cat.noCollide=other.noCollide=false;},1800); }; }
   }
   else note='unknown command';
+  if(welcome && cat && !cat.dead){ const c=cat; setTimeout(()=>{ if(c.dead) return; c.facing=-Math.PI/2; c.jump(); c.say(pick(['missed you 💕','you came back!','🥹'])); },1500); }
   logLine(user, msg, note);
 }
 function zoomies(cat, secs){
