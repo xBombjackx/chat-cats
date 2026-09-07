@@ -46,6 +46,10 @@ What happens on the overlay:
 
 Simulate any of these without Twitch from the admin page, or `GET /api/test?kind=raid&user=bob&viewers=40`.
 
+## Exposing it (companion page)
+
+`/play` is only useful if viewers can reach the server: run a tunnel (`cloudflared tunnel --url http://localhost:8080`, ngrok, …) and hand out `https://<tunnel>/play`. Before you do, set `ADMIN_KEY` in `.env`. With it set, `/admin`, `/api/*`, `/auth` and the overlay's socket need `?key=<ADMIN_KEY>` (the OBS browser source URL too, and Stream Deck URLs); the companion page stays public. Overlay files themselves are always public — they contain nothing secret.
+
 ## Stream Deck / hotkeys
 
 Any HTTP GET or POST works:

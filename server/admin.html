@@ -80,10 +80,12 @@
 </div>
 <script>
   const $=s=>document.querySelector(s), log=$('#log');
+  const KEY=new URLSearchParams(location.search).get('key')||'';
+  const _fetch=window.fetch; window.fetch=(u,init={})=>_fetch(u,{...init,headers:{...(init.headers||{}),'x-key':KEY}});   // ADMIN_KEY, if set
   let ws;
   function connect(){
     ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
-    ws.onopen=()=>{ ws.send(JSON.stringify({type:'hello',role:'admin'})); $('#d-ws').classList.add('on'); };
+    ws.onopen=()=>{ ws.send(JSON.stringify({type:'hello',role:'admin',key:KEY})); $('#d-ws').classList.add('on'); };
     ws.onclose=()=>{ $('#d-ws').classList.remove('on'); setTimeout(connect,1500); };
     ws.onmessage=e=>{ const m=JSON.parse(e.data);
       if(m.type==='status'){ $('#d-twitch').classList.toggle('on',m.twitch); $('#d-kick').classList.toggle('on',m.kick); $('#d-ov').classList.toggle('on',m.overlays>0); $('#ovn').textContent=m.overlays; $('#pln').textContent=m.players||0; }
@@ -104,7 +106,7 @@
     const body=$('#tw-body'), act=$('#tw-actions'); act.innerHTML='';
     $('#tw-events').textContent=(t.events||[]).join(' ');
     if(!t.configured){ body.innerHTML='Set <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> in .env (app at dev.twitch.tv/console, redirect URL <code>'+location.origin+'/auth/callback</code>).'; return; }
-    if(!t.connected){ body.textContent='Not connected.'; act.innerHTML='<a href="/auth"><button class="ev">Connect Twitch</button></a>'; return; }
+    if(!t.connected){ body.textContent='Not connected.'; act.innerHTML='<a href="/auth'+(KEY?'?key='+encodeURIComponent(KEY):'')+'"><button class="ev">Connect Twitch</button></a>'; return; }
     body.innerHTML=`Connected as <b></b> · EventSub <span class="dot ${t.eventsub?'on':''}"></span>`; body.querySelector('b').textContent=t.user?.name||t.user?.login||'?';
     act.innerHTML='<button id="tw-off">Disconnect</button><button id="tw-rw">List rewards</button>';
     $('#tw-off').onclick=async()=>{ await fetch('/api/twitch/disconnect',{method:'POST'}); loadTwitch(); };
@@ -119,6 +121,7 @@
 
   // settings
   $('#playurl').textContent=location.origin+'/play';
+  if(KEY) for(const c of document.querySelectorAll('.hint code')) if(c.textContent.includes('/api/')) c.textContent+=(c.textContent.includes('?')?'&':'?')+'key=…';
   const SKEYS=['maxCats','cooldownMs','respawnHours'];
   const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; };
   fetch('/api/settings').then(r=>r.json()).then(showSettings);

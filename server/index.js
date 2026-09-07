@@ -4,6 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { openDb } from './db.js';
 import { connectTwitch } from './twitch.js';
@@ -18,6 +19,8 @@ const env = (k, d) => process.env[k] ?? d;
 const PORT = +env('PORT', 8080);
 const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'refill', 'clearprops'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
+const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
+let oauthState = null;
 
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
 const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
@@ -128,6 +131,8 @@ function readBody(req) { return new Promise(r => { let b = ''; req.on('data', c 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const p = url.pathname;
+  const authed = !KEY || url.searchParams.get('key') === KEY || req.headers['x-key'] === KEY;
+  if (!authed && (p.startsWith('/api/') || p === '/admin' || p === '/admin/' || p === '/auth')) { res.writeHead(401, { 'content-type': 'text/plain' }); return res.end('add ?key=<ADMIN_KEY> to the URL'); }
   // API — GET is allowed too so Stream Deck's "Website" action can fire events
   if (p.startsWith('/api/')) {
     if (p === '/api/status') return json(res, 200, status);
@@ -165,11 +170,12 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 404, { ok: false });
   }
-  if (p === '/auth') { if (!twitch) return json(res, 400, { error: 'set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env' }); res.writeHead(302, { location: twitch.authUrl('cats') }); return res.end(); }
-  if (p === '/auth/callback') {
+  if (p === '/auth') { if (!twitch) return json(res, 400, { error: 'set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env' }); oauthState = crypto.randomUUID(); res.writeHead(302, { location: twitch.authUrl(oauthState) }); return res.end(); }
+  if (p === '/auth/callback') {   // twitch redirects here without our key, so the state nonce from /auth is the guard
     const code = url.searchParams.get('code');
-    if (!code || !twitch) { res.writeHead(400); return res.end(`twitch auth failed: ${url.searchParams.get('error_description') || 'no code'}`); }
-    try { await twitch.exchange(code); startTwitch(); sendStatus(); res.writeHead(302, { location: '/admin' }); return res.end(); }
+    if (!code || !twitch || !oauthState || url.searchParams.get('state') !== oauthState) { res.writeHead(400); return res.end(`twitch auth failed: ${url.searchParams.get('error_description') || 'bad state or no code'}`); }
+    oauthState = null;
+    try { await twitch.exchange(code); startTwitch(); sendStatus(); res.writeHead(302, { location: '/admin' + (KEY ? `?key=${encodeURIComponent(KEY)}` : '') }); return res.end(); }
     catch (e) { res.writeHead(500); return res.end('twitch auth failed: ' + e.message); }
   }
   if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(ROOT, 'server', 'admin.html'));
@@ -192,6 +198,7 @@ wss.on('connection', ws => {
     switch (m.type) {
       case 'hello':
         c.role = ['admin', 'play'].includes(m.role) ? m.role : 'overlay';
+        if (KEY && c.role !== 'play' && m.key !== KEY) { ws.send(JSON.stringify({ type: 'denied' })); ws.close(); return; }
         if (c.role === 'overlay') { status.overlays++; primary ??= c; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers(); }
         else if (c.role === 'play') {
           if (status.players >= MAX_PLAYERS) { ws.send(JSON.stringify({ type: 'full' })); ws.close(); return; }
