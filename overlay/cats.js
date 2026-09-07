@@ -99,7 +99,7 @@ class Cat {
     this.g.rotation.y = this.facing;
   }
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
-  releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
+  releaseProp(){ if(this.prop){ this.prop.users--; this.prop.taken?.delete(this.slot); this.prop=null; } }
   walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2*this.T.speed; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
   setName(n){ this.name=n; this.tag.textContent=this.afk?n+' 💤':this.key===cotdKey?n+' ✨':n; }
   setAfk(on){ this.afk=on; this.tag.textContent=on?this.name+' 💤':this.name; if(!on){ if(this.onProp) this.dismount(); else this.giveUp(); return; }
@@ -108,7 +108,7 @@ class Cat {
   hopTo(x,z,y,into){ const from={x:this.g.position.x,z:this.g.position.z,y:this.elev}; this.play('hop',0.6,true); this.anim.from=from; this.anim.to={x,z,y,into:!!into}; }
   dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
   dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
-  giveUp(){ if(this.onProp) this.dismountNow(); this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
+  giveUp(){ this.sneakTarget=null; if(this.onProp) this.dismountNow(); this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
   setState(s){ if(this.state==='sleep' && s!=='sleep' && !this.anim) this.resetAnim(); if(s==='sleep' && this.state!=='sleep') stat(this,'naps'); this.state=s; this.t=0; }   // sleeping poses need undoing
   // one-shot actions
   jump(){ if(this.jumpT<0) this.jumpT=0; }
@@ -130,7 +130,9 @@ class Cat {
     const posed = s==='sleep' && this.sleepStyle!=='loaf' && !this.inBox && !this.anim;   // side / back sleepers
     const lying = s==='loaf' || this.inBox || (s==='sleep' && !posed);
     if(!this.anim){ b.position.y = this.inBox ? (this.hiding ? -0.85 : -0.3) : lying ? -0.3 : 0; }   // hiding = fully ducked, ear tips showing
-    if(this.inBox && this.hiding && !this.anim && !PLAY && !busy){ const v=near(this,2.4,c=>c.state==='walk'&&!c.noCollide&&!c.onProp&&!c.anim); if(v) ambush(this,v); }
+    if(this.inBox && this.hiding && !this.anim && !PLAY && !busy){ const st=this.sneakTarget;
+      if(st&&!st.dead&&Math.hypot(st.g.position.x-g.position.x,st.g.position.z-g.position.z)<3.2){ this.hiding=false; sneakPounce(this); }
+      else { const v=near(this,2.4,c=>c.state==='walk'&&!c.noCollide&&!c.onProp&&!c.anim); if(v) ambush(this,v); } }
     for(const l of this.legs) l.visible = !lying;
     if(posed){ const br=Math.sin(now*1.5+this.ph)*0.03;
       if(this.sleepStyle==='side'){ b.rotation.x=1.35; b.position.y=0.22+br; this.head.rotation.z=0.25; this.head.rotation.y=0; for(let i=0;i<4;i++) this.legs[i].rotation.z=(i%2?0.45:-0.5)+Math.sin(now*0.7+i)*0.08; }
@@ -199,6 +201,10 @@ class Cat {
         case 'lickfoot': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-1.1*env; this.head.rotation.z=-0.55*env; this.head.position.x=0.55-0.25*env; this.legs[2].rotation.z=1.5*env; this.legs[2].rotation.x=-0.6*env; b.rotation.x=-0.25*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
         case 'lickbutt': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-2.3*env; this.head.rotation.z=-0.4*env; this.head.position.x=0.55-0.45*env; this.legs[3].rotation.x=1.6*env; b.rotation.x=0.55*env; b.position.y=0.05*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
         case 'swipe': { const pop=Math.min(1,p*4); b.position.y=-0.85+1.0*Math.sin(pop*Math.PI/2)-0.3*Math.max(0,(p-0.7)/0.3); this.legs[0].visible=true; this.legs[0].rotation.z=-2.1*Math.min(1,p*3); this.legs[0].rotation.x=Math.sin(A.t*22)*0.9*(p<0.8?1:0); this.head.rotation.z=-0.15; for(const e of this.eyes) e.scale.setScalar(1.3); break; }   // pop up out of the box and bat
+        case 'crouch': { const low=Math.min(1,p*3); b.position.y=-0.24*low; b.rotation.z=0.1*low; this.head.position.y=1.55-0.12*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);
+          this.tail.rotation.z=0.2+Math.sin(A.t*14)*0.15; b.rotation.x=Math.sin(A.t*9)*0.05*low;   // butt wiggle
+          const t=this.sneakTarget; if(t&&!t.dead){ this.head.rotation.y=clamp(normA(Math.atan2(-(t.g.position.z-g.position.z), t.g.position.x-g.position.x)-this.facing),-1.2,1.2); if(Math.hypot(t.g.position.x-g.position.x,t.g.position.z-g.position.z)<(this.elev>0?4:2.9)) A.t=A.dur; }
+          if(p>=1&&this.sneakTarget) setTimeout(()=>sneakPounce(this),0); break; }
         case 'tackle': b.position.x=1.1*s1; b.rotation.z=-0.4*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.4*s1; this.head.rotation.z=-0.2*s1; break;   // lunge along facing
         case 'knocked': { const env=p<0.3?p/0.3:1-(p-0.3)/0.7; b.rotation.x=1.25*env; b.position.y=0.3*Math.sin(Math.min(1,p*2)*Math.PI); b.position.x=-0.8*s1; this.ears[0].rotation.x=this.ears[1].rotation.x=-0.6*env; for(const e of this.eyes) e.scale.setScalar(1+0.5*env); break; }   // shoved onto its side
         case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=1.55-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
@@ -223,7 +229,7 @@ class Cat {
     if(this.bubbleEl){ this.bubbleEl.style.left=sx+'px'; this.bubbleEl.style.top=(sy-18)+'px'; }
   }
   goTo(p){
-    p.users++; this.prop=p; this.chase=0; this.slot=p.users-1;
+    p.users++; this.prop=p; this.chase=0; p.taken=p.taken||new Set(); this.slot=0; while(p.taken.has(this.slot)) this.slot++; p.taken.add(this.slot);
     const walk=()=>{ const dx=this.g.position.x-p.x, dz=this.g.position.z-p.z, d=Math.hypot(dx,dz)||1; this.walkTo(p.x+dx/d*(p.r+0.6), p.z+dz/d*(p.r+0.6), p.type==='toy'?3.2:2.4, true); this.onArrive=arrive; };
     const arrive=()=>{ if(this.prop!==p) return;
       if(p.type==='toy' && Math.hypot(p.x-this.g.position.x,p.z-this.g.position.z)>p.r+1.4 && this.chase++<3){ walk(); return; }   // ball rolled off — chase it
@@ -249,6 +255,9 @@ class Cat {
     if(this.following){ const f=this.following; if(f.cat.dead||performance.now()>f.until){ this.following=null; } else { const o=f.cat, dx=this.g.position.x-o.g.position.x, dz=this.g.position.z-o.g.position.z, d=Math.hypot(dx,dz)||1;
       if(d>2.4){ this.walkTo(o.g.position.x+dx/d*1.7, o.g.position.z+dz/d*1.7, Math.max(2.5,o.speed||2.5)); this.onArrive=()=>{ this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.timer=rnd(0.5,1.5); }; }
       else { this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.setState('sit'); this.timer=rnd(1,2); } return; } }
+    if(this.onProp && this.sneakTarget){ const t=this.sneakTarget; if(t.dead||Math.hypot(t.g.position.x-this.g.position.x,t.g.position.z-this.g.position.z)>13){ this.sneakTarget=null; }
+      else if(this.inBox){ this.hiding=true; this.setState('loaf'); this.timer=rnd(5,9); this.sneakWaits=(this.sneakWaits||0)+1; if(this.sneakWaits>2) this.sneakTarget=null; return; }
+      else { faceAt(this,t); this.play('crouch',rnd(3,6)); return; } }   // crouch ends → sneakPounce leaps off
     if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
       const r=Math.random();
       if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.25+0.35*this.T.ambush){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
@@ -267,7 +276,8 @@ class Cat {
     const free=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide;
     if(!busy && Math.random()<0.05*T.scrap){   // spontaneous scrap — rivals mostly, friends never
       const o=near(this,6,c=>free(c)&&!isFriend(this,c)&&(isRival(this,c)||Math.random()<0.25)); if(o){ wrestle(this,o,false); return; } }
-    if(Math.random()<0.04*T.scrap){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
+    if(Math.random()<0.035*T.scrap && sneak(this)) return;
+    if(Math.random()<0.03*T.scrap){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
     if(Math.random()<0.5*T.follow){   // go hang out with a friend; greet on arrival
       const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
         if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
@@ -345,6 +355,7 @@ function handleChat(user, msg, key, away){
   else if(cmd==='stretch') cat.play('stretch',1.5);
   else if(cmd==='roll') cat.play('roll',1.2);
   else if(cmd==='pounce') cat.play('pounce',1.0);
+  else if(cmd==='sneak'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; note=sneak(cat, t&&t!==cat?t:null)?'sneaking':'nobody to sneak up on'; }
   else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
   else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else wrestle(cat,o,false); }
   else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(pick(['hsss','HISS','>:3'])); }
@@ -455,6 +466,39 @@ function ambush(a,v){   // a is hiding in a box, v just walked past
     else if(!busy && (isRival(a,v)||Math.random()<0.5)){ a.dismountNow(); wrestle(v,a,false); }   // the victim starts it
     else { v.say(pick(['hmph','nope','😾'])); const dx=v.g.position.x-a.g.position.x, dz=v.g.position.z-a.g.position.z, d=Math.hypot(dx,dz)||1; v.walkTo(v.g.position.x+dx/d*5, v.g.position.z+dz/d*3, 4.5); a.timer=rnd(3,6); }
   }, 900);
+}
+// sneak attack: get out of the victim's sight — behind it, round the far side of furniture, into a box, or up on something — wait, then spring
+function sneak(cat, target){
+  const ok=c=>!c.dead&&c!==cat&&!c.noCollide&&!c.onProp&&c.state!=='walk'&&!c.sneakTarget;
+  const t=target||near(cat,12,c=>ok(c)&&!isFriend(cat,c)&&(isRival(cat,c)||Math.random()<0.5)); if(!t||t.dead) return false;
+  const tp=t.g.position, dist=(x,z)=>Math.hypot(x-tp.x,z-tp.z);
+  const perch=props.find(p=>(p.h>0)&&p.users<(p.cap||1)&&dist(p.x,p.z)<8&&dist(p.x,p.z)>2), box=props.find(p=>p.type==='box'&&p.users<1&&dist(p.x,p.z)<9);
+  cat.sneakTarget=t; cat.sneakWaits=0; cat.releaseProp(); if(cat.onProp) cat.dismountNow();
+  const r=Math.random();
+  if(perch && r<0.35){ cat.goTo(perch); cat.say(pick(['…','👀'])); return true; }   // crouch up high, leap off
+  if(box && r<0.6){ cat.goTo(box); return true; }                                   // hide in the box, pop out
+  const spots=[{x:tp.x-Math.cos(t.facing)*2.6, z:tp.z+Math.sin(t.facing)*2.6}];    // right behind it
+  for(const o of obstacles){ const cx=(o.x0+o.x1)/2, cz=(o.z0+o.z1)/2, rr=Math.max(o.x1-o.x0,o.z1-o.z0)/2+1.0, dx=cx-tp.x, dz=cz-tp.z, d=Math.hypot(dx,dz)||1; if(d<9) spots.push({x:cx+dx/d*rr, z:cz+dz/d*rr}); }
+  for(const p of props){ if(['toy','bowl','water'].includes(p.type)) continue; const dx=p.x-tp.x, dz=p.z-tp.z, d=Math.hypot(dx,dz)||1; if(d<9&&d>1.5) spots.push({x:p.x+dx/d*(p.r+1.0), z:p.z+dz/d*(p.r+1.0)}); }
+  const sp=pick(spots.filter(q=>dist(q.x,q.z)>1.8)); if(!sp){ cat.sneakTarget=null; return false; }
+  const f=freePoint(sp.x,sp.z); cat.walkTo(f.x,f.z,2.8); if(Math.random()<0.5) cat.say(pick(['…','>:3','hehe']));
+  cat.onArrive=()=>{ const v=cat.sneakTarget; if(!v||v.dead){ cat.sneakTarget=null; return; } faceAt(cat,v); cat.play('crouch',rnd(3,6)); cat.timer=99; };
+  return true;
+}
+function sneakPounce(cat){
+  const t=cat.sneakTarget; cat.sneakTarget=null; if(!t||t.dead||cat.dead) return;
+  const d=()=>Math.hypot(t.g.position.x-cat.g.position.x,t.g.position.z-cat.g.position.z);
+  if(d()>7){ cat.say('…'); if(cat.onProp&&!cat.inBox) cat.dismount(); return; }   // they wandered off
+  const strike=()=>{ if(cat.dead||t.dead) return; faceAt(cat,t); cat.say(pick(['GOTCHA','BOO','>:3','sneak attack!']),'pow');
+    setTimeout(()=>{ if(cat.dead||t.dead) return;
+      if(d()<2.6){ t.giveUp(); faceAt(t,cat); t.play('knocked',0.7); t.say(pick(['!!','😱','HEY','😾']));
+        setTimeout(()=>{ if(cat.dead||t.dead) return; if(isFriend(cat,t)) t.say(pick(['😹','rude','lol'])); else if(!busy&&(isRival(cat,t)||Math.random()<0.4)) wrestle(t,cat,false); else t.say(pick(['hmph','😾'])); },800); }
+      else cat.say('missed'); }, 650); };
+  if(cat.elev>0){   // leap off the perch straight at them
+    const p=cat.onProp; cat.onProp=null; cat.noCollide=false; cat.releaseProp(); const f=freePoint(t.g.position.x+rnd(-0.4,0.4), t.g.position.z+rnd(-0.4,0.4)); faceAt(cat,t); cat.hopTo(f.x,f.z,0); strike(); return; }
+  if(cat.onProp) cat.dismountNow();
+  if(d()>3){ cat.walkTo(t.g.position.x, t.g.position.z, 7); cat.onArrive=()=>{ cat.play('pounce',1.0); strike(); }; }   // dash then pounce
+  else { cat.play('pounce',1.0); strike(); }
 }
 function stalk(cat, target){   // creep low toward a cat (or the ball), then pounce
   target=target||near(cat,9,c=>c.state!=='walk'&&!c.noCollide); const ball=props.find(p=>p.type==='toy');
