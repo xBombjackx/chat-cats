@@ -190,7 +190,7 @@ class Cat {
     else if(r<0.985){ this.facing=-Math.PI/2; this.timer=rnd(2,4); this.play('peek',2.5); }   // look at the viewer
     else { this.facing += Math.PI; this.timer=rnd(1,3); }
   }
-  remove(){ this.dead=true; scene.remove(this.g); this.tag.remove(); if(this.bubbleEl) this.bubbleEl.remove(); }
+  remove(){ this.dead=true; this.releaseProp(); if(this.pal){ this.pal.noCollide=false; this.pal=null; } scene.remove(this.g); this.tag.remove(); if(this.bubbleEl) this.bubbleEl.remove(); }
 }
 
 // ---------- registry + commands ----------
@@ -199,11 +199,11 @@ let MAX_CATS = 30;
 const labels = document.getElementById('labels');
 const log = document.getElementById('log');
 const net = { send(){} };   // replaced by net.js when the server is around
-function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span>${note?` <span style="opacity:.6">— ${note}</span>`:''}`; d.querySelector('b').textContent=user; d.querySelector('span').textContent=msg; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
+function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span><span style="opacity:.6"></span>`; const [m,n]=d.querySelectorAll('span'); d.querySelector('b').textContent=user; m.textContent=msg; n.textContent=note?` — ${note}`:''; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
 function findCat(name){ name=name.toLowerCase(); for(const c of cats.values()) if(c.name.toLowerCase()===name) return c; return null; }
 function removeCat(cat){ cat.remove(); cats.delete(cat.key); }
 function spawnCat(key, name, look, quiet){
-  if(cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||(c.visitor&&!old.visitor)||(c.visitor===old.visitor&&c.last<old.last)) old=c; if(old){ old.say('bye'); removeCat(old); } }   // evict: raid visitors first, then least recently active
+  if(!PLAY && cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||(c.visitor&&!old.visitor)||(c.visitor===old.visitor&&c.last<old.last)) old=c; if(old){ old.say('bye'); removeCat(old); } }   // evict: raid visitors first, then least recently active
   const cat=new Cat(key, name, look); cats.set(key,cat); if(!quiet) cat.say('hi!'); return cat;
 }
 
@@ -292,7 +292,7 @@ const events = {
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
   fish(n=14){ for(let i=0;i<n;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
-    for(const c of cats.values()) setTimeout(()=>{ c.walkTo(rnd(-XMAX,XMAX),rnd(ZMIN,ZMAX),4); c.onArrive=()=>c.jump(); }, rnd(300,2500)); },
+    if(!PLAY) for(const c of cats.values()) setTimeout(()=>{ if(!c.dead){ c.walkTo(rnd(-XMAX,XMAX),rnd(ZMIN,ZMAX),4); c.onArrive=()=>c.jump(); } }, rnd(300,2500)); },
   laser(){ if(laser) return; laser=new THREE.Mesh(new THREE.CircleGeometry(0.18,12),new THREE.MeshBasicMaterial({color:0xff2b2b})); laser.rotation.x=-Math.PI/2; laser.position.y=0.02; laser.userData.t0=performance.now(); scene.add(laser);
     const chase=()=>{ if(!laser) return; for(const c of cats.values()){ c.walkTo(laser.position.x+rnd(-0.6,0.6), laser.position.z, 5); c.onArrive=()=>{ if(Math.random()<0.5) c.jump(); }; } };
     if(!PLAY){ chase(); laser.userData.iv=setInterval(chase,900); }
@@ -304,7 +304,7 @@ function toast(t){ logLine('event','',t); }
 const randomLook=()=>({body:pick(Object.keys(COLORS)), eyes:pick(Object.keys(EYES)), pattern:pick(PATTERNS), hat:pick(HATS)});
 function celebrate(){ let i=0; for(const c of cats.values()) setTimeout(()=>{ if(c.dead) return; c.jump(); if(Math.random()<0.35) c.say(pick(['yay!','🎉','MEOW','!!'])); }, i++*90); }
 function handleTwitch(m){
-  const key='twitch:'+String(m.id||m.user).toLowerCase(); let cat=cats.get(key);
+  const key=m.key||'twitch:'+String(m.id||m.user).toLowerCase(); let cat=cats.get(key);
   switch(m.kind){
     case 'follow': { const c=cat||pick([...cats.values()]); if(c){ c.target=null; c.setState('idle'); c.facing=-Math.PI/2; c.wave(); c.say('hi '+m.user+'!'); } toast(m.user+' followed'); break; }
     case 'sub': case 'resub': {
@@ -391,9 +391,10 @@ rebuildZones();
 
 // ---------- companion page (/play) ----------
 // overlay streams compact cat state to the server while anyone is watching; the companion mirrors it and sends clicks back as pokes
-let watchers=0;
+let watchers=0, lastState='';
 if(!PLAY) setInterval(()=>{ if(!watchers) return;
-  net.send({type:'state', cats:[...cats.values()].map(c=>[c.key,c.name,+c.g.position.x.toFixed(2),+c.g.position.z.toFixed(2),+c.facing.toFixed(2),c.state,c.bubbleEl?c.bubbleEl.textContent:'',c.g.position.y>0.05?1:0,`${c.look.body}/${c.look.eyes}/${c.look.pattern}/${c.look.hat}`])}); }, 125);
+  const payload=JSON.stringify({type:'state', cats:[...cats.values()].map(c=>[c.key,c.name,+c.g.position.x.toFixed(2),+c.g.position.z.toFixed(2),+c.facing.toFixed(2),c.state,c.bubbleEl?c.bubbleEl.textContent:'',c.g.position.y>0.05?1:0,`${c.look.body}/${c.look.eyes}/${c.look.pattern}/${c.look.hat}`])});
+  if(payload===lastState) return; lastState=payload; net.send(JSON.parse(payload)); }, 125);
 function applyState(m){
   const seen=new Set();
   for(const [key,name,x,z,f,state,bubble,jumping,lk] of m.cats){ seen.add(key); let c=cats.get(key);
@@ -411,7 +412,7 @@ function handlePoke(x,z){   // viewer clicked the stage: nearest cat reacts, or 
   const f=freePoint(x,z); let best=null, bd=1e9;
   for(const c of cats.values()){ const d=Math.hypot(c.g.position.x-f.x,c.g.position.z-f.z); if(d<bd){ bd=d; best=c; } }
   if(!best) return;
-  if(bd<2.5){ if(best.state==='sleep'||best.state==='loaf'){ best.setState('idle'); best.timer=1; } best.target=null; best.facing=-Math.PI/2; best.jump(); best.say(pick(['!','?','mrrp','💕','boop'])); }
+  if(bd<2.5){ if(best.state!=='idle') best.giveUp(); best.timer=Math.max(best.timer,1); best.facing=-Math.PI/2; best.jump(); best.say(pick(['!','?','mrrp','💕','boop'])); }
   else if(best.state!=='walk'){ best.walkTo(f.x,f.z,3.5); best.onArrive=()=>{ best.facing=-Math.PI/2; best.say('?'); }; }
 }
 if(PLAY){
@@ -424,12 +425,16 @@ if(PLAY){
 
 function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); }
 // server sends this on connect: persisted cats + prop layout
+let booted=false;
 function applyInit(m){
   if(m.maxCats) MAX_CATS=m.maxCats;
-  for(const p of props) scene.remove(p.mesh); props=[];
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
+  if(booted){   // reconnect (server restart, wifi blip): keep everything that's on stage, only add what we're missing
+    if(!PLAY) for(const c of m.cats||[]) if(!cats.has(c.key)) spawnCat(c.key,c.name,c.look,true);
+    return;
+  }
+  booted=true;
   if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else defaultProps();
-  for(const c of cats.values()) c.remove(); cats.clear();
   if(!PLAY) for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
 }
 if(q.get('demo')==='1'){   // standalone demo, no server
@@ -457,7 +462,7 @@ function frame(now){
       for(const c of cats.values()){ const dx=p.x-c.g.position.x, dz=p.z-c.g.position.z, d=Math.hypot(dx,dz); if(d<0.85&&d>1e-3&&c.state==='walk'&&Math.hypot(p.vx,p.vz)<1){ p.vx=dx/d*3; p.vz=dz/d*3; } }
     } else { for(const c of cats.values()){ const dx=c.g.position.x-p.x, dz=c.g.position.z-p.z, d=Math.hypot(dx,dz), rr=p.r+0.35; if(d<rr&&d>1e-3&&c.prop!==p){ c.g.position.x=clamp(p.x+dx/d*rr,-XMAX,XMAX); c.g.position.z=clamp(p.z+dz/d*rr,ZMIN,ZMAX); } } }
   }
-  if(zoneQuads.length) for(const c of cats.values()){ const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
+  if(!PLAY && zoneQuads.length) for(const c of cats.values()){ const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
   if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
   for(const f of fishes){ f.userData.vy-=25*dt; f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(f.position.y<0.6){ scene.remove(f); } }

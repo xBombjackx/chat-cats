@@ -15,14 +15,14 @@ export function makeTwitchAuth({ clientId, clientSecret, redirectUri, db, idUrl 
   }
   async function store(j) {
     tok = { access: j.access_token, refresh: j.refresh_token, expires: Date.now() + j.expires_in * 1000, scopes: j.scope || [], user: tok?.user };
-    const u = (await helix('/users')).data?.[0];
-    if (u) tok.user = { id: u.id, login: u.login, name: u.display_name };
-    save();
+    save();   // persist the rotated refresh token even if the user lookup below fails
+    if (!tok.user) { const u = (await helix('/users', {}, false)).data?.[0]; if (u) { tok.user = { id: u.id, login: u.login, name: u.display_name }; save(); } }
     return tok;
   }
-  async function refresh() {
-    if (!tok?.refresh) throw new Error('no refresh token');
-    return store(await tokenRequest({ grant_type: 'refresh_token', refresh_token: tok.refresh }));
+  let refreshing = null;   // one refresh at a time — concurrent 401s must not burn the same refresh token twice
+  function refresh() {
+    if (!tok?.refresh) return Promise.reject(new Error('no refresh token'));
+    return refreshing ??= tokenRequest({ grant_type: 'refresh_token', refresh_token: tok.refresh }).then(store).finally(() => { refreshing = null; });
   }
   async function token() {
     if (!tok) return null;
@@ -46,7 +46,7 @@ export function makeTwitchAuth({ clientId, clientSecret, redirectUri, db, idUrl 
     async exchange(code) { return store(await tokenRequest({ grant_type: 'authorization_code', code, redirect_uri: redirectUri })); },
     token, helix,
     get user() { return tok?.user || null; },
-    get connected() { return !!tok; },
+    get connected() { return !!tok?.user; },
     get info() { return tok ? { login: tok.user?.login, name: tok.user?.name, id: tok.user?.id, scopes: tok.scopes, expires: tok.expires } : null; },
     disconnect() { tok = null; db.set('twitch_token', null); },
   };

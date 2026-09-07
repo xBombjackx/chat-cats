@@ -27,20 +27,25 @@ export function normalize(type, e) {
 }
 
 export function startEventSub({ wsUrl = 'wss://eventsub.wss.twitch.tv/ws', helix, userId, onEvent, onStatus, log = console.log }) {
-  let ws, stopped = false, backoff = 2000, watchdog, subscribed = false;
-  const reset = () => { stopped = true; clearTimeout(watchdog); ws?.close(); };
+  let ws = null, pending = null, retryTimer = null, stopped = false, backoff = 2000, subscribed = false;
+  // ws = live session socket, pending = socket still waiting for its welcome
+  const reset = () => { stopped = true; clearTimeout(retryTimer); for (const s of [ws, pending]) { if (s) { clearTimeout(s.watchdog); s.terminate(); } } ws = pending = null; };
+  const scheduleRetry = () => { if (stopped || retryTimer) return; log(`[eventsub] retry in ${backoff / 1000}s`); retryTimer = setTimeout(() => { retryTimer = null; connect(wsUrl); }, backoff); backoff = Math.min(backoff * 2, 60000); };
 
   function connect(url, isReconnect) {
+    if (stopped) return;
     const sock = new WebSocket(url);
+    pending = sock;
     sock.on('open', () => log(`[eventsub] connected${isReconnect ? ' (reconnect)' : ''}`));
     sock.on('message', async buf => {
       let m; try { m = JSON.parse(buf.toString()); } catch { return; }
       const t = m.metadata?.message_type;
       const timeout = (m.payload?.session?.keepalive_timeout_seconds || 10) * 1000 + 5000;
-      clearTimeout(watchdog); watchdog = setTimeout(() => { log('[eventsub] keepalive missed, reconnecting'); sock.terminate(); }, timeout);
+      clearTimeout(sock.watchdog); sock.watchdog = setTimeout(() => { log('[eventsub] keepalive missed, reconnecting'); sock.terminate(); }, timeout);
       if (t === 'session_welcome') {
-        if (ws && ws !== sock) ws.close();   // old socket after a session_reconnect
-        ws = sock; backoff = 2000;
+        if (stopped) { sock.terminate(); return; }
+        if (ws && ws !== sock) { const old = ws; ws = null; clearTimeout(old.watchdog); old.close(); }   // old socket after a session_reconnect
+        ws = sock; if (pending === sock) pending = null; backoff = 2000;
         if (!isReconnect || !subscribed) await subscribeAll(m.payload.session.id);
         onStatus(true);
       } else if (t === 'session_reconnect') {
@@ -54,10 +59,11 @@ export function startEventSub({ wsUrl = 'wss://eventsub.wss.twitch.tv/ws', helix
       }
     });
     sock.on('close', () => {
-      clearTimeout(watchdog);
-      if (sock !== ws && ws) return;   // superseded by a reconnect socket
-      onStatus(false); subscribed = false;
-      if (!stopped) { log(`[eventsub] closed, retry in ${backoff / 1000}s`); setTimeout(() => connect(wsUrl), backoff); backoff = Math.min(backoff * 2, 60000); }
+      clearTimeout(sock.watchdog);
+      if (pending === sock) pending = null;
+      if (sock !== ws) { if (!ws && !stopped) scheduleRetry(); return; }   // a superseded or failed-before-welcome socket; retry only if nothing is live
+      ws = null; onStatus(false); subscribed = false;
+      if (!stopped) { log('[eventsub] session closed'); scheduleRetry(); }
     });
     sock.on('error', e => log('[eventsub] error:', e.message));
   }

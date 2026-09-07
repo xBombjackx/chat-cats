@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 export function openDb(path) {
   const db = new DatabaseSync(path);
   db.exec(`
+    PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;
     CREATE TABLE IF NOT EXISTS cats (
       key TEXT PRIMARY KEY,          -- platform:username (lowercase)
       name TEXT NOT NULL,            -- display name

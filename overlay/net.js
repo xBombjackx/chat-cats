@@ -2,14 +2,14 @@
 // ?ws=ws://host:port overrides the target (handy when serving the overlay from somewhere else).
 (()=>{
   const url = q.get('ws') || (location.protocol==='https:'?'wss://':'ws://')+location.host;
-  let ws=null, retry=1000;
+  let ws=null, retry=1000, denied=false;
   function connect(){
     ws=new WebSocket(url);
-    ws.onopen=()=>{ retry=1000; ws.send(JSON.stringify({type:'hello',role:PLAY?'play':'overlay',key:q.get('key')||''})); logLine('server','','connected'); };
-    ws.onclose=()=>{ ws=null; setTimeout(connect, retry); retry=Math.min(retry*2, 10000); };
+    ws.onopen=()=>{ retry=1000; lastState=''; ws.send(JSON.stringify({type:'hello',role:PLAY?'play':'overlay',key:q.get('key')||''})); logLine('server','','connected'); };
+    ws.onclose=()=>{ ws=null; if(denied) return; setTimeout(connect, retry); retry=Math.min(retry*2, 10000); };
     ws.onerror=()=>ws?.close();
     ws.onmessage=e=>{ let m; try{ m=JSON.parse(e.data); }catch{ return; }
-      if(m.type==='denied'){ logLine('server','','denied — add ?key=<ADMIN_KEY> to the overlay URL'); retry=10000; return; }
+      if(m.type==='denied'){ logLine('server','','denied — add ?key=<ADMIN_KEY> to the overlay URL'); denied=true; return; }
       if(m.type==='init') applyInit(m);
       else if(PLAY){   // companion: mirror state, visual-only events
         if(m.type==='state') applyState(m);

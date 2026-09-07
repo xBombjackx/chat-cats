@@ -12,6 +12,8 @@ import { connectKick } from './kick.js';
 import { makeTwitchAuth } from './twitch-auth.js';
 import { startEventSub } from './eventsub.js';
 
+process.on('unhandledRejection', e => console.error('[unhandled]', e?.stack || e));
+process.on('uncaughtException', e => console.error('[uncaught]', e?.stack || e));
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fine */ }
 const env = (k, d) => process.env[k] ?? d;
@@ -28,9 +30,9 @@ const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, 
 const DEFAULTS = { cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 function setSettings(patch) {
-  for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, +patch[k]);
+  for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
   db.set('settings', cfg);
-  broadcast({ type: 'config', maxCats: cfg.maxCats }, 'overlay');
+  broadcast({ type: 'config', maxCats: cfg.maxCats }, 'overlay'); broadcast({ type: 'config', maxCats: cfg.maxCats }, 'play');
   return cfg;
 }
 
@@ -54,17 +56,20 @@ function initPayload() {
 
 // ---------- chat pipeline ----------
 const lastCmd = new Map();   // key -> ms
-function onChat({ platform, user, id, msg }) {
-  msg = String(msg ?? '').trim();
+const catKey = (platform, user, id) => `${platform}:${String(id || user || 'anon').toLowerCase()}`;
+function onChat({ platform, user, id, msg, free }) {   // free = skip and don't consume the cooldown (paid redeems)
+  msg = String(msg ?? '').trim(); user = String(user ?? 'anon').slice(0, 40) || 'anon';
   if (!msg.startsWith('!')) return;
-  const key = `${platform}:${(id || user).toLowerCase()}`;
+  const key = catKey(platform, user, id);
   const now = Date.now();
-  if (platform !== 'admin' && now - (lastCmd.get(key) || 0) < cfg.cooldownMs) {
-    broadcast({ type: 'cooldown', key }, 'overlay');   // the cat shows a little hourglass
-    broadcast({ type: 'log', platform, user, msg: msg + ' (cooldown)' }, 'admin');
-    return;
+  if (!free && platform !== 'admin') {
+    if (now - (lastCmd.get(key) || 0) < cfg.cooldownMs) {
+      broadcast({ type: 'cooldown', key }, 'overlay');   // the cat shows a little hourglass
+      broadcast({ type: 'log', platform, user, msg: msg + ' (cooldown)' }, 'admin');
+      return;
+    }
+    lastCmd.set(key, now);
   }
-  lastCmd.set(key, now);
   if (lastCmd.size > 5000) for (const [k, t] of lastCmd) if (now - t > 60e3) lastCmd.delete(k);
   db.touchCat(key);
   broadcast({ type: 'chat', platform, user, key, msg }, 'overlay');
@@ -79,15 +84,16 @@ function fireEvent(name, by = 'admin') {
 // ---------- twitch eventsub ----------
 // channel point redeems map reward title -> action: "!command" runs as the redeemer (user input appended), else an event name
 function onTwitchEvent(ev) {
+  ev.user = String(ev.user ?? 'someone').slice(0, 40); ev.id = String(ev.id ?? ev.user); ev.reward = String(ev.reward ?? ''); ev.input = String(ev.input ?? '').slice(0, 200);
   broadcast({ type: 'log', platform: 'twitch', user: ev.user, msg: describe(ev) }, 'admin');
   if (ev.kind === 'redeem') {
     const map = db.get('redeems', {}), action = map[ev.reward.toLowerCase()];
     if (!action) return;
-    if (action.startsWith('!')) { const msg = (action + ' ' + ev.input).trim(); lastCmd.delete(`twitch:${ev.id.toLowerCase()}`); onChat({ platform: 'twitch', user: ev.user, id: ev.id, msg }); }
+    if (action.startsWith('!')) onChat({ platform: 'twitch', user: ev.user, id: ev.id, msg: (action + ' ' + ev.input).trim(), free: true });
     else fireEvent(action, ev.user);
     return;
   }
-  broadcast({ type: 'twitch', ...ev }, 'overlay');
+  broadcast({ type: 'twitch', ...ev, key: catKey('twitch', ev.user, ev.id) }, 'overlay');
 }
 function describe(ev) {
   switch (ev.kind) {
@@ -190,41 +196,48 @@ const server = http.createServer(async (req, res) => {
 const wss = new WebSocketServer({ server });
 let primary = null;   // the overlay whose cat positions get mirrored to the companion page
 function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
+// what each role may send; nothing before a successful hello
+const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones'], admin: ['chat', 'event'], play: ['poke'] };
+const isStr = v => typeof v === 'string' && v.length > 0 && v.length < 200;
 wss.on('connection', ws => {
-  const c = { ws, role: 'overlay' };
+  const c = { ws, role: null };   // role is set only once hello is accepted
   clients.add(c);
   ws.on('message', buf => {
     let m; try { m = JSON.parse(buf.toString()); } catch { return; }
-    switch (m.type) {
-      case 'hello':
-        c.role = ['admin', 'play'].includes(m.role) ? m.role : 'overlay';
-        if (KEY && c.role !== 'play' && m.key !== KEY) { ws.send(JSON.stringify({ type: 'denied' })); ws.close(); return; }
-        if (c.role === 'overlay') { status.overlays++; primary ??= c; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers(); }
-        else if (c.role === 'play') {
-          if (status.players >= MAX_PLAYERS) { ws.send(JSON.stringify({ type: 'full' })); ws.close(); return; }
-          status.players++; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers();
-        }
+    if (!m || typeof m !== 'object') return;
+    try {
+      if (m.type === 'hello') {
+        if (c.role) return;
+        const role = ['admin', 'play'].includes(m.role) ? m.role : 'overlay';
+        if (KEY && role !== 'play' && m.key !== KEY) { ws.send(JSON.stringify({ type: 'denied' })); ws.close(); return; }
+        if (role === 'play' && status.players >= MAX_PLAYERS) { ws.send(JSON.stringify({ type: 'full' })); ws.close(); return; }
+        c.role = role;
+        if (role === 'overlay') { status.overlays++; primary ??= c; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers(); }
+        else if (role === 'play') { status.players++; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers(); }
         else ws.send(JSON.stringify({ type: 'status', ...status }));
-        break;
-      case 'state': if (c === primary && status.players) broadcast({ type: 'state', cats: m.cats, t: Date.now() }, 'play'); break;
-      case 'poke': {   // companion click; 1/s per viewer
-        if (c.role !== 'play') break;
-        const now = Date.now(); if (now - (c.lastPoke || 0) < 1000) break; c.lastPoke = now;
-        if (Number.isFinite(+m.x) && Number.isFinite(+m.z)) broadcast({ type: 'poke', x: +m.x, z: +m.z }, 'overlay');
-        break; }
-      case 'cat': if (m.key && m.look) db.saveCat(m.key, m.name || m.key, m.look); break;
-      case 'catgone': if (m.key) db.deleteCat(m.key); break;
-      case 'props': if (Array.isArray(m.props)) db.set('props', m.props); break;
-      case 'zones': if (Array.isArray(m.zones)) db.set('zones', m.zones); break;
-      case 'chat': onChat({ platform: 'admin', user: m.user || 'streamer', msg: m.msg }); break;   // from admin page
-      case 'event': fireEvent(m.name); break;
-    }
+        return;
+      }
+      if (!c.role || !ALLOWED[c.role].includes(m.type)) return;
+      switch (m.type) {
+        case 'state': if (c === primary && status.players && Array.isArray(m.cats)) broadcast({ type: 'state', cats: m.cats, t: Date.now() }, 'play'); break;
+        case 'poke': {   // companion click; 1/s per viewer
+          const now = Date.now(); if (now - (c.lastPoke || 0) < 1000) break; c.lastPoke = now;
+          if (Number.isFinite(+m.x) && Number.isFinite(+m.z)) broadcast({ type: 'poke', x: +m.x, z: +m.z }, 'overlay');
+          break; }
+        case 'cat': if (isStr(m.key) && m.look && typeof m.look === 'object') db.saveCat(m.key, isStr(m.name) ? m.name : m.key, m.look); break;
+        case 'catgone': if (isStr(m.key)) db.deleteCat(m.key); break;
+        case 'props': if (Array.isArray(m.props)) db.set('props', m.props.slice(0, 50)); break;
+        case 'zones': if (Array.isArray(m.zones)) db.set('zones', m.zones.slice(0, 20)); break;
+        case 'chat': onChat({ platform: 'admin', user: isStr(m.user) ? m.user : 'streamer', msg: m.msg }); break;   // from admin page
+        case 'event': if (isStr(m.name)) fireEvent(m.name); break;
+      }
+    } catch (e) { console.error('[ws]', c.role, m.type, e.message); }
   });
   ws.on('close', () => {
     clients.delete(c);
     if (c.role === 'overlay') { status.overlays = Math.max(0, status.overlays - 1); if (primary === c) primary = [...clients].find(x => x.role === 'overlay') || null; }
     if (c.role === 'play') status.players = Math.max(0, status.players - 1);
-    sendStatus(); sendWatchers();
+    if (c.role) { sendStatus(); sendWatchers(); }
   });
 });
 
