@@ -63,9 +63,11 @@ http://localhost:8080/api/settings                       GET, or POST {"maxCats"
 
 ## Chat commands
 
-- `!cat [color] [pattern] [hat] eyes <color>` — spawn or restyle
-- `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !leave`
-- `!pet @name` — walk over and nuzzle
+- `!cat [color] [pattern] [hat] [size] eyes <color>` — spawn or restyle; sizes `kitten skinny adult fat`
+- `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !stalk !leave`
+- `!pet @name` — walk over and nuzzle · `!tackle @name` — pick a fight · `!stalk [@name]` — creep up and pounce
+
+Cats have secret likes and dislikes (a stable hash per pair, nothing to configure): friends hang out together, greet with nose boops, share bowls and play ball together; rivals hiss when close, get stalked, fight over food and start scraps. Everyone else is neutral.
 
 Per-user cooldown (a ⏳ bubble shows when a command is dropped), cat cap with least-recently-active eviction (raid visitors go first). Looks persist; cats active within the respawn window come back when the overlay reloads. Prop layout persists too. Cooldown, cap and respawn window are editable live on `/admin`; `.env` values are just the defaults.
 

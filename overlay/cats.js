@@ -19,6 +19,7 @@ const COLORS = {orange:0xf28c38, ginger:0xf28c38, black:0x2b2b33, white:0xf5f1ea
 const EYES = {green:0x5fd36a, blue:0x5aa9ff, yellow:0xffd54a, amber:0xffa62b, pink:0xff7bd1, red:0xff5252, gold:0xffd54a};
 const HATS = ['none','crown','beanie','party','bow','halo'];
 const PATTERNS = ['solid','tabby','tuxedo','calico'];
+const SIZES = {adult:[1,1,1], kitten:[0.62,0.62,0.62], fat:[1.12,0.95,1.3], skinny:[0.95,1.06,0.8], chonk:[1.12,0.95,1.3], smol:[0.62,0.62,0.62]};   // body scale multipliers x,y,z
 const pick = a => a[Math.floor(Math.random()*a.length)];
 const rnd = (a,b) => a + Math.random()*(b-a);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -31,7 +32,7 @@ function parseColor(s, table){ if(table[s]!=null) return table[s]; if(/^#?[0-9a-
 class Cat {
   constructor(key, name, look){
     this.key = key; this.name = name; this.last = performance.now();
-    this.look = Object.assign({body:'orange', eyes:'green', pattern:'solid', hat:'none'}, look);
+    this.look = Object.assign({body:'orange', eyes:'green', pattern:'solid', hat:'none', size:'adult'}, look);
     this.g = new THREE.Group();
     const sp=freePoint(rnd(-XMAX,XMAX), rnd(ZMIN,ZMAX)); this.g.position.set(sp.x, 0, sp.z);
     scene.add(this.g);
@@ -46,22 +47,28 @@ class Cat {
     const L = this.look, c = parseColor(L.body,COLORS) ?? COLORS.orange, e = parseColor(L.eyes,EYES) ?? EYES.green;
     const g = this.g, dark = darken(c, 0.72), white=0xf5f1ea;
     this.body = new THREE.Group(); g.add(this.body);
-    const b = this.body; b.scale.setScalar(0.72);   // chibi + small
+    const sz=SIZES[L.size]||SIZES.adult; this.baseScale=new THREE.Vector3(0.72*sz[0],0.72*sz[1],0.72*sz[2]);
+    const b = this.body; b.scale.copy(this.baseScale);   // chibi + small
+    this.h = 2.05*sz[1];                                  // label height
     box(b,1.1,0.75,0.8,c,0,0.7,0);                       // stubby torso
-    const head = box(b,1.35,1.2,1.25,c,0.55,1.55,0);     // big head
+    if(L.size==='fat'||L.size==='chonk') box(b,1.0,0.55,0.9,c,0.05,0.42,0);   // belly
+    // head group pivots at the neck-ish centre (0.55,1.55,0); face, ears and hat are its children so they move with it
+    const hd = this.head = new THREE.Group(); hd.position.set(0.55,1.55,0); b.add(hd);
+    box(hd,1.35,1.2,1.25,c,0,0,0);                        // big head
     // ears: short, wide, pink inside
-    this.ears=[ box(b,0.45,0.42,0.22,c,0.3,2.3,-0.42), box(b,0.45,0.42,0.22,c,0.3,2.3,0.42) ];
-    box(b,0.25,0.24,0.16,0xffb3c6,0.35,2.27,-0.42); box(b,0.25,0.24,0.16,0xffb3c6,0.35,2.27,0.42);
+    this.ears=[ box(hd,0.45,0.42,0.22,c,-0.25,0.75,-0.42), box(hd,0.45,0.42,0.22,c,-0.25,0.75,0.42) ];
+    box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,-0.42); box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,0.42);
     // big eyes with highlight
-    this.eyes=[]; for(const z of [-0.33,0.33]){ const eg=new THREE.Group(); eg.position.set(1.23,1.6,z); b.add(eg);
+    this.eyes=[]; for(const z of [-0.33,0.33]){ const eg=new THREE.Group(); eg.position.set(0.68,0.05,z); hd.add(eg);
       box(eg,0.08,0.4,0.36,e,0,0,0); box(eg,0.1,0.14,0.12,0x111111,0.01,-0.02,0.03); box(eg,0.12,0.1,0.08,0xffffff,0.02,0.1,-0.08); this.eyes.push(eg); }
-    box(b,0.1,0.1,0.16,0xff8fa3,1.23,1.3,0);              // nose
-    box(b,0.06,0.06,0.16,0x7a4b2a,1.23,1.2,-0.1); box(b,0.06,0.06,0.16,0x7a4b2a,1.23,1.2,0.1); // w mouth
-    box(b,0.06,0.16,0.28,0xffa0b8,1.23,1.28,-0.5); box(b,0.06,0.16,0.28,0xffa0b8,1.23,1.28,0.5); // blush
-    box(b,0.06,0.04,0.42,0xffffff,1.24,1.32,0.5); box(b,0.06,0.04,0.42,0xffffff,1.24,1.32,-0.5);   // whiskers
-    if(L.pattern==='tuxedo'){ box(b,0.2,0.4,0.45,white,0.5,0.6,0); box(b,0.1,0.5,0.55,white,1.22,1.15,0); }
-    if(L.pattern==='tabby'){ for(let i=0;i<2;i++) box(b,0.16,0.12,0.85,dark,-0.35+i*0.4,1.1,0); box(b,0.55,0.12,0.6,dark,0.55,2.17,0); box(b,0.16,0.14,0.3,dark,0.55,2.16,-0.5); box(b,0.16,0.14,0.3,dark,0.55,2.16,0.5); }
-    if(L.pattern==='calico'){ box(b,0.5,0.35,0.85,0xf28c38,-0.25,0.95,0); box(b,0.6,0.5,0.55,0x2b2b33,0.45,2.0,-0.45); box(b,0.4,0.3,0.3,0xf28c38,0.9,1.9,0.6); }
+    box(hd,0.1,0.1,0.16,0xff8fa3,0.68,-0.25,0);              // nose
+    box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,-0.1); box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,0.1); // w mouth
+    this.tongue=box(hd,0.1,0.14,0.14,0xff7b9c,0.7,-0.47,0); this.tongue.visible=false;               // out while grooming / drinking
+    box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,-0.5); box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,0.5); // blush
+    box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,0.5); box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,-0.5);   // whiskers
+    if(L.pattern==='tuxedo'){ box(b,0.2,0.4,0.45,white,0.5,0.6,0); box(hd,0.1,0.5,0.55,white,0.67,-0.4,0); }
+    if(L.pattern==='tabby'){ for(let i=0;i<2;i++) box(b,0.16,0.12,0.85,dark,-0.35+i*0.4,1.1,0); box(hd,0.55,0.12,0.6,dark,0,0.62,0); box(hd,0.16,0.14,0.3,dark,0,0.61,-0.5); box(hd,0.16,0.14,0.3,dark,0,0.61,0.5); }
+    if(L.pattern==='calico'){ box(b,0.5,0.35,0.85,0xf28c38,-0.25,0.95,0); box(hd,0.6,0.5,0.55,0x2b2b33,-0.1,0.45,-0.45); box(hd,0.4,0.3,0.3,0xf28c38,0.35,0.35,0.6); }
     // stubby legs (pivot at top)
     this.legs=[]; const lp=[[0.35,-0.25],[0.35,0.25],[-0.35,-0.25],[-0.35,0.25]];
     for(const [x,z] of lp){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.32,0.4,0.32,c,0,-0.2,0); box(p,0.33,0.12,0.34,L.pattern==='tuxedo'?white:c,0,-0.35,0); b.add(p); this.legs.push(p); }
@@ -69,7 +76,7 @@ class Cat {
     this.tail = new THREE.Group(); this.tail.position.set(-0.55,0.85,0); box(this.tail,0.22,0.7,0.22,c,-0.05,0.3,0); box(this.tail,0.24,0.24,0.24,L.pattern==='tabby'?dark:c,-0.05,0.72,0);
     this.tail.rotation.z = 0.6; b.add(this.tail);
     // hat
-    const h=new THREE.Group(); h.position.set(0.55,2.15,0); b.add(h);
+    const h=new THREE.Group(); h.position.set(0,0.6,0); hd.add(h);
     if(L.hat==='crown'){ box(h,0.8,0.2,0.8,0xffd23f,0,0.1,0); for(const [x,z] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]) box(h,0.18,0.3,0.18,0xffd23f,x,0.3,z); box(h,0.16,0.16,0.16,0xff4d6d,0.42,0.2,0); }
     if(L.hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
     if(L.hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
@@ -87,7 +94,8 @@ class Cat {
   setState(s){ this.state=s; this.t=0; }
   // one-shot actions
   jump(){ if(this.jumpT<0) this.jumpT=0; }
-  play(name,dur){ if(!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
+  play(name,dur,keepProp){ if(this.anim) this.resetAnim(); if(!keepProp&&!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
+  resetAnim(){ const b=this.body; this.anim=null; b.rotation.x=0; b.rotation.z=0; b.position.z=0; b.position.x=0; b.scale.copy(this.baseScale); this.tongue.visible=false; b.position.y=0; this.g.position.y=0; this.tail.rotation.x=0; this.legs[0].rotation.z=this.legs[1].rotation.z=0; this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.z=0; this.head.position.y=1.55; for(const e of this.eyes) e.scale.setScalar(1); }
   spin(){ this.spinT=0; }
   wave(){ this.waveT=0; this.setState('idle'); this.timer=2; }
   update(dt, now){
@@ -125,12 +133,17 @@ class Cat {
         b.position.y = Math.abs(Math.sin(now*this.speed*4))*0.06; }
     } else {
       for(const l of this.legs) l.rotation.z *= 0.8;
-      if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle(); }
-      if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; b.children[1].rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
+      if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle();
+        if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ faceAt(this,o); const aff=affinity(this,o);
+          if(aff<-0.55 && Math.random()<0.35){ this.play('arch',0.8); this.say(pick(['hss','😾','go away'])); } else if(aff>0.55 && Math.random()<0.2) this.say(pick(['💕',':3','prrr'])); } } } }
+      if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; this.head.rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       else if(!lying) b.rotation.z *= 0.8;
       if(s==='loaf'){ this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       if(s==='sleep'){ this.timer-=dt; if(Math.floor(this.t)!==Math.floor(this.t-dt) && Math.floor(this.t)%2===0) this.say('z'.repeat(1+Math.floor(this.t)%3)); if(this.timer<=0){ this.setState('idle'); this.play('stretch',1.5); } }
-      if(s==='groom'){ b.children[1].rotation.z = Math.sin(now*10)*0.2; b.children[1].position.y=1.55+Math.abs(Math.sin(now*10))*0.08; this.timer-=dt; if(this.timer<=0){ b.children[1].rotation.z=0; b.children[1].position.y=1.55; this.setState('idle'); this.timer=2; } }
+      if(s==='groom'){ const lick=Math.abs(Math.sin(now*10)); this.head.rotation.z = -0.25+Math.sin(now*10)*0.15; this.head.position.y=1.45+lick*0.06;   // head down, tongue out, paw up to the face
+        this.tongue.visible=true; this.tongue.position.y=-0.47-lick*0.1; this.tongue.scale.y=0.6+lick*0.8;
+        this.legs[0].rotation.z=-1.9+Math.sin(now*10)*0.15; this.legs[0].position.y=0.55;
+        this.timer-=dt; if(this.timer<=0){ this.head.rotation.z=0; this.head.position.y=1.55; this.tongue.visible=false; this.legs[0].position.y=0.4; this.setState('idle'); this.timer=2; } }
     }
     // facing (smooth turn)
     const ry = this.facing; let dr=((ry-g.rotation.y+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; g.rotation.y += dr*Math.min(1,dt*10);
@@ -144,40 +157,65 @@ class Cat {
     if(this.anim){ const A=this.anim; A.t+=dt; const p=Math.min(1,A.t/A.dur), s1=Math.sin(p*Math.PI);
       switch(A.name){
         case 'stretch': this.legs[0].rotation.z=this.legs[1].rotation.z=-1.3*s1; b.rotation.z=-0.38*s1; b.position.y=-0.1*s1; this.tail.rotation.z=0.6+1.1*s1; break;
-        case 'roll': b.rotation.x=p*Math.PI*2; b.position.y=0.35*s1; break;
+        case 'roll': { const th=p*Math.PI*2, cy=0.7*0.72; b.rotation.x=th; b.position.y=cy*(1-Math.cos(th))+0.15*s1; b.position.z=-cy*Math.sin(th); break; }
         case 'pounce': if(p<0.4){ const q=p/0.4; b.position.y=-0.22*q; b.rotation.z=0.18*q; this.tail.rotation.x=Math.sin(A.t*30)*0.4; }
                        else { const q=(p-0.4)/0.6; g.position.y=Math.sin(q*Math.PI)*0.9; g.position.x=clamp(g.position.x+Math.cos(this.facing)*dt*4.5,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*dt*4.5,ZMIN,ZMAX); b.rotation.z=-0.25*Math.sin(q*Math.PI); this.legs[0].rotation.z=this.legs[1].rotation.z=-1.0*Math.sin(q*Math.PI); } break;
-        case 'arch': b.scale.y=0.72*(1+0.32*s1); b.position.y=0.04*s1; this.tail.rotation.z=0.6-0.75*s1; for(const e of this.eyes) e.scale.setScalar(1+0.4*s1); break;
+        case 'tackle': b.position.x=1.1*s1; b.rotation.z=-0.4*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.4*s1; this.head.rotation.z=-0.2*s1; break;   // lunge along facing
+        case 'knocked': { const env=p<0.3?p/0.3:1-(p-0.3)/0.7; b.rotation.x=1.25*env; b.position.y=0.3*Math.sin(Math.min(1,p*2)*Math.PI); b.position.x=-0.8*s1; this.ears[0].rotation.x=this.ears[1].rotation.x=-0.6*env; for(const e of this.eyes) e.scale.setScalar(1+0.5*env); break; }   // shoved onto its side
+        case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=1.55-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
+          this.tail.rotation.z=0.2+Math.sin(A.t*18)*0.12; this.tail.rotation.x=Math.sin(A.t*18)*0.25; const st=dt*0.9*low; g.position.x=clamp(g.position.x+Math.cos(this.facing)*st,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*st,ZMIN,ZMAX);
+          for(let i=0;i<4;i++) this.legs[i].rotation.z=Math.sin(A.t*4+(i%2?Math.PI:0)+(i>1?Math.PI/2:0))*0.35*low; break; }
+        case 'arch': b.scale.y=this.baseScale.y*(1+0.32*s1); b.position.y=0.04*s1; this.tail.rotation.z=0.6-0.75*s1; for(const e of this.eyes) e.scale.setScalar(1+0.4*s1); break;
         case 'shake': b.rotation.x=Math.sin(A.t*40)*0.28*(1-p); this.ears[0].rotation.x=this.ears[1].rotation.x=-b.rotation.x*1.5; break;
         case 'nuzzle': b.rotation.z=-0.35*Math.abs(Math.sin(A.t*5))*(1-p*0.5); b.position.y=-0.06*s1; break;
         case 'twitch': this.ears[p<0.5?0:1].rotation.x=Math.sin(A.t*35)*0.35*(1-p); break;
-        case 'peek': b.children[1].rotation.z=0.25*s1; break;
-        case 'eat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=b.children[1]; hd.position.y=1.55-0.42*env-0.05*Math.abs(Math.sin(A.t*8))*env; hd.rotation.z=-0.35*env; this.tail.rotation.z=0.6+0.6*env; break; }
-        case 'drink': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=b.children[1]; hd.position.y=1.55-0.4*env-0.03*Math.abs(Math.sin(A.t*16))*env; hd.rotation.z=-0.3*env; break; }
+        case 'peek': this.head.rotation.z=0.25*s1; break;
+        case 'eat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=1.55-0.42*env-0.05*Math.abs(Math.sin(A.t*8))*env; hd.rotation.z=-0.35*env; this.tail.rotation.z=0.6+0.6*env; break; }
+        case 'drink': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=1.55-0.4*env-0.03*Math.abs(Math.sin(A.t*16))*env; hd.rotation.z=-0.3*env; this.tongue.visible=env>0.5; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*16)); break; }
         case 'scratch': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); b.rotation.z=0.8*env; b.position.y=0.32*env; this.legs[0].rotation.z=(-1.7+Math.sin(A.t*14)*0.4)*env; this.legs[1].rotation.z=(-1.7-Math.sin(A.t*14)*0.4)*env; break; }
         case 'bat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)); this.legs[0].rotation.z=-1.3*Math.abs(Math.sin(A.t*10))*env; b.rotation.z=-0.1*env; break; }
       }
-      if(p>=1){ this.anim=null; b.rotation.x=0; b.rotation.z=0; b.scale.setScalar(0.72); b.position.y=0; g.position.y=0; this.tail.rotation.x=0; this.legs[0].rotation.z=this.legs[1].rotation.z=0; this.ears[0].rotation.x=this.ears[1].rotation.x=0; b.children[1].rotation.z=0; b.children[1].position.y=1.55; for(const e of this.eyes) e.scale.setScalar(1); this.releaseProp(); }
+      if(p>=1){ this.resetAnim(); this.releaseProp(); }
     }
     // labels
-    const v=new THREE.Vector3(g.position.x, g.position.y+ (lying?1.5:2.05), g.position.z).project(camera);
+    const v=new THREE.Vector3(g.position.x, g.position.y+ (lying?this.h*0.73:this.h), g.position.z).project(camera);
     const sx=(v.x+1)/2*innerWidth, sy=(1-v.y)/2*innerHeight;
     this.tag.style.left=sx+'px'; this.tag.style.top=sy+'px';
     if(this.bubbleEl){ this.bubbleEl.style.left=sx+'px'; this.bubbleEl.style.top=(sy-18)+'px'; }
   }
   goTo(p){
-    p.users++; this.prop=p;
-    const dx=this.g.position.x-p.x, dz=this.g.position.z-p.z, d=Math.hypot(dx,dz)||1;
-    this.walkTo(p.x+dx/d*(p.r+0.6), p.z+dz/d*(p.r+0.6), 2.4, true);
-    this.onArrive=()=>{ if(this.prop!==p) return; this.facing=Math.atan2(-(p.z-this.g.position.z), p.x-this.g.position.x);
-      if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
-      else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('drink',3); this.say('lap lap'); }
-      else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
-      else if(p.type==='toy'){ this.play('bat',1.0); setTimeout(()=>{ if(p.mesh.parent){ p.vx=Math.cos(this.facing)*6; p.vz=-Math.sin(this.facing)*6; } },350); if(Math.random()<0.5) this.say('!'); }
-    };
+    p.users++; this.prop=p; this.chase=0;
+    const walk=()=>{ const dx=this.g.position.x-p.x, dz=this.g.position.z-p.z, d=Math.hypot(dx,dz)||1; this.walkTo(p.x+dx/d*(p.r+0.6), p.z+dz/d*(p.r+0.6), p.type==='toy'?3.2:2.4, true); this.onArrive=arrive; };
+    const arrive=()=>{ if(this.prop!==p) return;
+      if(p.type==='toy' && Math.hypot(p.x-this.g.position.x,p.z-this.g.position.z)>p.r+1.4 && this.chase++<3){ walk(); return; }   // ball rolled off — chase it
+      if((p.type==='bowl'||p.type==='water') && p.amount>0){ const other=[...cats.values()].find(c=>c!==this&&!c.dead&&c.prop===p);
+        if(other && !isFriend(this,other)){ if(isRival(this,other)||Math.random()<0.6) squabble(this,other,p); else { this.say('…'); this.releaseProp(); this.walkTo(this.g.position.x+rnd(-3,3), this.g.position.z+rnd(-2,2)); } return; } }
+      this.useProp(p); };
+    walk();
+  }
+  useProp(p){
+    this.facing=Math.atan2(-(p.z-this.g.position.z), p.x-this.g.position.x);
+    if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
+    else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('drink',3); this.say('lap lap'); }
+    else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
+    else if(p.type==='toy'){ this.play('bat',1.0); setTimeout(()=>{ if(p.mesh.parent){ p.vx=Math.cos(this.facing)*6; p.vz=-Math.sin(this.facing)*6; } },350); if(Math.random()<0.5) this.say('!');
+      // rope a nearby idle cat into the game
+      const ok=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide, buddy=near(this,7,c=>ok(c)&&isFriend(this,c))||near(this,7,c=>ok(c)&&!isRival(this,c));
+      if(buddy && p.users<3 && Math.random()<0.6) setTimeout(()=>{ if(!buddy.dead&&!buddy.prop&&buddy.state==='idle'&&p.mesh.parent){ buddy.say(pick(['ooh','me too!','!'])); buddy.goTo(p); } }, 500); }
   }
   pickIdle(){
-    if(props.length && Math.random()<0.4){ const cands=props.filter(p=>p.users<(p.type==='toy'?3:1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
+    if(props.length && Math.random()<0.4){
+      const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6){ this.goTo(game); return; }   // someone's playing — join in
+      const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
+      const cands=props.filter(p=>p.users<(p.type==='toy'?3:1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
+    const free=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide;
+    if(!busy && Math.random()<0.05){   // spontaneous scrap — rivals mostly, friends never
+      const o=near(this,6,c=>free(c)&&!isFriend(this,c)&&(isRival(this,c)||Math.random()<0.25)); if(o){ wrestle(this,o,false); return; } }
+    if(Math.random()<0.04){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
+    if(Math.random()<0.5){   // go hang out with a friend; greet on arrival
+      const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
+        if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
+    const rv=near(this,3,c=>isRival(this,c)); if(rv && Math.random()<0.5){ const dx=this.g.position.x-rv.g.position.x, dz=this.g.position.z-rv.g.position.z, d=Math.hypot(dx,dz)||1; this.say(pick(['hmph','…'])); this.walkTo(this.g.position.x+dx/d*4, this.g.position.z+dz/d*3); return; }   // not sitting next to *that* one
     const r=Math.random();
     if(r<0.45) this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4));
     else if(r<0.65){ this.setState('sit'); this.timer=rnd(2,5); }
@@ -217,7 +255,7 @@ function handleChat(user, msg, key){
     const look = cat ? {...cat.look} : {};
     for(let i=0;i<parts.length;i++){ const p=parts[i];
       if(p==='eyes' && parts[i+1]){ look.eyes=parts[++i]; continue; }
-      if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
+      if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(SIZES[p]) look.size=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
     if(!cat){ cat=spawnCat(key, user, look); note='spawned'; }
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
     net.send({type:'cat', key, name:user, look:cat.look});
@@ -233,6 +271,8 @@ function handleChat(user, msg, key){
   else if(cmd==='stretch') cat.play('stretch',1.5);
   else if(cmd==='roll') cat.play('roll',1.2);
   else if(cmd==='pounce') cat.play('pounce',1.0);
+  else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
+  else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else wrestle(cat,o,false); }
   else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(pick(['hsss','HISS','>:3'])); }
   else if(cmd==='shake') cat.play('shake',0.7);
   else if(cmd==='pet'||cmd==='boop'||cmd==='hug'){
@@ -278,14 +318,7 @@ let laser=null, fishes=[], busy=false;
 const events = {
   wrestlemania(){
     const list=[...cats.values()].filter(c=>!c.dead); if(list.length<2){ toast('need 2+ cats'); return; }
-    const [a,b] = list.sort(()=>Math.random()-0.5).slice(0,2); busy=true;
-    const mx=rnd(-4,4), mz=rnd(ZMIN+0.3,ZMAX-0.3);
-    a.say('👊'); b.say('😾'); a.noCollide=b.noCollide=true; a.walkTo(mx-1,mz,4); b.walkTo(mx+1,mz,4);
-    const bail=()=>{ if(a.dead||b.dead){ busy=false; a.noCollide=b.noCollide=false; return true; } return false; };
-    setTimeout(()=>{ if(bail()) return; a.facing=0; b.facing=Math.PI; let n=0;
-      const iv=setInterval(()=>{ if(bail()){ clearInterval(iv); return; } const c=n%2?a:b; c.jump(); (n%2?b:a).spin(); c.say(pick(['POW','BONK','BAP','WHAP','HISS']),'pow'); if(++n>7) clearInterval(iv); }, 380);
-      setTimeout(()=>{ if(bail()) return; const w=Math.random()<0.5?a:b, l=w===a?b:a; l.setState('loaf'); l.timer=6; l.say('😵'); w.jump(); setTimeout(()=>{ if(!w.dead) w.jump(); },500); w.say('🏆 '+w.name+' wins!'); busy=false; setTimeout(()=>{a.noCollide=b.noCollide=false;},1500); }, 3400);
-    }, 2200);
+    const [a,b] = list.sort(()=>Math.random()-0.5).slice(0,2); wrestle(a,b,true);
   },
   refill(){ refill(); toast('refilled'); },
   clearprops(){ clearProps(); toast('props cleared'); },
@@ -299,6 +332,51 @@ const events = {
     setTimeout(()=>{ clearInterval(laser.userData.iv); scene.remove(laser); laser=null; for(const c of cats.values()) c.say('…'); }, 12000); }
 };
 function toast(t){ logLine('event','',t); }
+// secret likes/dislikes: a stable hash of the pair → -1..1. Nobody configures it, it just is.
+function affinity(a,b){ const k=[a.key,b.key].sort().join('|'); let h=2166136261; for(let i=0;i<k.length;i++){ h^=k.charCodeAt(i); h=Math.imul(h,16777619); } return ((h>>>0)%2001)/1000-1; }
+const isFriend=(a,b)=>affinity(a,b)>0.55, isRival=(a,b)=>affinity(a,b)<-0.55;
+function near(me,r,filter){ let best=null,bd=r; for(const c of cats.values()){ if(c===me||c.dead||(filter&&!filter(c))) continue; const d=Math.hypot(c.g.position.x-me.g.position.x,c.g.position.z-me.g.position.z); if(d<bd){ bd=d; best=c; } } return best; }
+const faceAt=(me,o)=>{ me.facing=Math.atan2(-(o.g.position.z-me.g.position.z), o.g.position.x-me.g.position.x); };
+function greet(a,b){   // friends meeting: nose boop
+  a.noCollide=b.noCollide=true; a.pal=b; faceAt(a,b); faceAt(b,a); a.play('nuzzle',1.2,false); b.play('nuzzle',1.2,false); a.say(pick(['💕',':3','hi '+b.name])); setTimeout(()=>{ if(!b.dead) b.say(pick(['💕','prrr','hi!'])); },350);
+  setTimeout(()=>{ a.noCollide=b.noCollide=false; a.pal=null; },1600);
+}
+function stalk(cat, target){   // creep low toward a cat (or the ball), then pounce
+  target=target||near(cat,9,c=>c.state!=='walk'&&!c.noCollide); const ball=props.find(p=>p.type==='toy');
+  const tx=target?target.g.position.x:ball?ball.x:cat.g.position.x+rnd(-4,4), tz=target?target.g.position.z:ball?ball.z:cat.g.position.z+rnd(-3,3);
+  cat.facing=Math.atan2(-(tz-cat.g.position.z), tx-cat.g.position.x); cat.releaseProp(); cat.play('stalk',2.6);
+  setTimeout(()=>{ if(cat.dead) return; cat.facing=Math.atan2(-(tz-cat.g.position.z), tx-cat.g.position.x); cat.play('pounce',1.0);
+    setTimeout(()=>{ if(cat.dead||!target||target.dead) return; if(Math.hypot(target.g.position.x-cat.g.position.x,target.g.position.z-cat.g.position.z)<2.2){ faceAt(target,cat); target.play('knocked',0.7); target.say(pick(['!!','😾','hey!'])); cat.say(pick(['gotcha','>:3','boo']));
+      if(isRival(cat,target)&&!busy&&Math.random()<0.5) setTimeout(()=>{ if(!cat.dead&&!target.dead&&!busy) wrestle(target,cat,false); },900); } else cat.say('…'); }, 700); }, 2600);
+}
+// full = the streamer event (centre stage, 8 rounds, trophy); otherwise a quick scrap where the cats already are
+function wrestle(a,b,full){
+  busy=true;
+  for(const c of [a,b]){ c.releaseProp(); c.anim&&c.resetAnim(); c.noCollide=true; }
+  const mx=full?rnd(-4,4):(a.g.position.x+b.g.position.x)/2, mz=clamp(full?rnd(ZMIN+0.3,ZMAX-0.3):(a.g.position.z+b.g.position.z)/2, ZMIN+0.3, ZMAX-0.3);
+  a.say(full?'👊':pick(['grr','😾','MINE'])); setTimeout(()=>{ if(!b.dead) b.say('😾'); },300);
+  a.walkTo(mx-1,mz,4); b.walkTo(mx+1,mz,4); a.onArrive=b.onArrive=function(){ this.timer=12; };   // don't wander off mid-fight
+  const bail=()=>{ if(a.dead||b.dead){ busy=false; a.noCollide=b.noCollide=false; return true; } return false; };
+  const rounds=full?8:4;
+  setTimeout(()=>{ if(bail()) return; a.facing=0; b.facing=Math.PI; let n=0;
+    const iv=setInterval(()=>{ if(bail()){ clearInterval(iv); return; } const c=n%2?a:b, o=n%2?b:a;
+      if(n<rounds-1){ c.play('tackle',0.5,true); setTimeout(()=>{ if(!o.dead) o.play('knocked',0.75,true); },160); c.say(pick(['POW','BONK','BAP','WHAP']),'pow'); }
+      else { a.spin(); b.spin(); a.say('💥','pow'); }   // final tumble
+      if(++n>=rounds) clearInterval(iv); }, 700);
+    setTimeout(()=>{ if(bail()) return; const aff=affinity(a,b), w=Math.random()<0.5?a:b, l=w===a?b:a; l.play('knocked',0.8,true); setTimeout(()=>{ if(!l.dead){ l.setState('loaf'); l.timer=full?6:3; } },800); l.say('😵'); w.jump();
+      if(full){ setTimeout(()=>{ if(!w.dead) w.jump(); },500); w.say('🏆 '+w.name+' wins!'); } else { w.say(pick(['hmph','😤','mine.'])); w.timer=1.5; }
+      busy=false; setTimeout(()=>{a.noCollide=b.noCollide=false;},1500); }, rounds*700+300);
+  }, full?2200:1500);
+}
+// newcomer a arrives at bowl/water p while b is using it: hiss-off, then one of them eats
+function squabble(a,b,p){
+  a.facing=Math.atan2(-(b.g.position.z-a.g.position.z), b.g.position.x-a.g.position.x); b.facing=a.facing+Math.PI;
+  a.play('arch',1.0,true); b.play('arch',1.0,true); a.say(pick(['hsss','MINE','>:3'])); setTimeout(()=>{ if(!b.dead) b.say(pick(['HISS','no!','>:('])); },250);
+  setTimeout(()=>{ if(a.dead||b.dead||!p.mesh.parent) return;   // arch ended: both reservations were dropped by the anim reset
+    const winner=Math.random()<(isRival(a,b)?0.6:0.5)?a:b, loser=winner===a?b:a;   // the pushy one usually wins
+    loser.say(pick(['😾','fine.','hmph'])); loser.walkTo(loser.g.position.x+rnd(-4,4), loser.g.position.z+rnd(-3,3), 3);
+    p.users++; winner.prop=p; winner.useProp(p); }, 1150);
+}
 
 // ---------- twitch reactions (subs, bits, raids, follows) ----------
 const randomLook=()=>({body:pick(Object.keys(COLORS)), eyes:pick(Object.keys(EYES)), pattern:pick(PATTERNS), hat:pick(HATS)});
@@ -434,7 +512,7 @@ function applyInit(m){
     return;
   }
   booted=true;
-  if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else defaultProps();
+  if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else if(!props.length) defaultProps();
   if(!PLAY) for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
 }
 if(q.get('demo')==='1'){   // standalone demo, no server
