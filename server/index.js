@@ -29,10 +29,14 @@ const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, 
 // settings: .env gives defaults, /admin can change them live (stored in sqlite)
 const DEFAULTS = { predictions: +env('PREDICTIONS', 1), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
+const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
+cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
 function setSettings(patch) {
   for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
+  if (ENVS.includes(patch.env)) cfg.env = patch.env;
   db.set('settings', cfg);
-  broadcast({ type: 'config', maxCats: cfg.maxCats }, 'overlay'); broadcast({ type: 'config', maxCats: cfg.maxCats }, 'play');
+  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env };
+  broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
 
@@ -55,6 +59,7 @@ function initPayload() {
   return {
     type: 'init',
     cotd: catOfTheDay(),
+    env: cfg.env,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),

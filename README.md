@@ -21,6 +21,10 @@ Node 22.13+ (uses the built-in `node:sqlite`). No token needed: Twitch chat is r
 
 Browser source → `http://localhost:8080/?ui=0&bg=0` (1920×1080). Transparent background. Add `&depth=0` to keep cats in a shallow strip at the bottom, `&tags=0` to hide name tags.
 
+### Rooms
+
+Pick a room on the streamer panel or the admin settings: bedroom, kitchen, living room, garden, or none (transparent, the default). It's saved for every overlay. `?env=kitchen` in the URL pins one page to a room. Rooms bring furniture cats use: the bed and couch fit two, cats jump on the kitchen counters, and the garden tree is climbable. Your own props (bowls, boxes…) sit on top of whichever room is active.
+
 ### No-go zones
 
 Cats steer around screen rectangles (webcam, alerts) and are hard-clamped out of them, head included. Draw them on the overlay page: show the UI (`H`), *Draw zone*, drag a box. They persist on the server. Or pass them in the URL, as viewport fractions or percentages, which overrides the saved ones:

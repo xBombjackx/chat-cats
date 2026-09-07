@@ -5,6 +5,7 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:transparent;overflow:hidden;font-family:var(--font);color:var(--ink)}
   body.demo-bg{background:radial-gradient(1200px 600px at 50% 110%,#5b4a6b 0%,#2e2740 60%,#1d1a2a 100%)}
+  body.env{background:#1d1a2a}
   #c{position:fixed;inset:0;display:block}
   #labels{position:fixed;inset:0;pointer-events:none}
   .tag.cotd{color:#ffe28a;text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 10px rgba(255,210,80,.9),0 0 22px rgba(255,190,50,.6);animation:glow 2s ease-in-out infinite alternate}

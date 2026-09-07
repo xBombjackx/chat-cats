@@ -5,7 +5,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-camera.position.set(0, 9, 27); camera.lookAt(0, 0, -2.5);
+camera.position.set(0, 10.5, 31); camera.lookAt(0, 0.4, -2.5);
 scene.add(new THREE.HemisphereLight(0xfff4e0, 0x6b5a7a, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(5, 10, 6); scene.add(sun);
 const XMAX = 11; let ZMIN = -7, ZMAX = 3;   // depth: ZMIN is far, ZMAX is near the viewer
@@ -220,7 +220,7 @@ class Cat {
     if(this.bubbleEl){ this.bubbleEl.style.left=sx+'px'; this.bubbleEl.style.top=(sy-18)+'px'; }
   }
   goTo(p){
-    p.users++; this.prop=p; this.chase=0;
+    p.users++; this.prop=p; this.chase=0; this.slot=p.users-1;
     const walk=()=>{ const dx=this.g.position.x-p.x, dz=this.g.position.z-p.z, d=Math.hypot(dx,dz)||1; this.walkTo(p.x+dx/d*(p.r+0.6), p.z+dz/d*(p.r+0.6), p.type==='toy'?3.2:2.4, true); this.onArrive=arrive; };
     const arrive=()=>{ if(this.prop!==p) return;
       if(p.type==='toy' && Math.hypot(p.x-this.g.position.x,p.z-this.g.position.z)>p.r+1.4 && this.chase++<3){ walk(); return; }   // ball rolled off — chase it
@@ -234,7 +234,8 @@ class Cat {
     if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=0; this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
     else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=Math.max(0,this.hunger-0.15); this.play('drink',3); this.say('lap lap'); }
     else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
-    else if(p.type==='box'||p.type==='perch'){ this.onProp=p; this.noCollide=true; this.hopTo(p.x,p.z,p.h||0,p.type==='box'); this.say(pick(p.type==='box'?['box!','if i fits…','mine now']:['👀','up here','👑'])); }
+    else if(p.type==='box'||p.type==='perch'||PERCHY.includes(p.type)){ this.onProp=p; this.noCollide=true; const off=(p.cap||1)>1?((this.slot||0)%2?0.95:-0.95):0; this.hopTo(p.x+off*(p.sx||1),p.z+off*(p.sz||0),p.h||0,p.type==='box');
+      this.say(pick(p.type==='box'?['box!','if i fits…','mine now']:p.type==='bed'?['comfy','zzz soon','mine']:p.type==='counter'?['not allowed up here','👀','hehe']:p.type==='tree'?['🌳','up up','👀']:['👀','up here','👑'])); }
     else if(p.type==='toy'){ this.play('bat',1.0); setTimeout(()=>{ if(p.mesh.parent){ p.vx=Math.cos(this.facing)*6; p.vz=-Math.sin(this.facing)*6; } },350); if(Math.random()<0.5) this.say('!');
       // rope a nearby idle cat into the game
       const ok=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide, buddy=near(this,7,c=>ok(c)&&isFriend(this,c))||near(this,7,c=>ok(c)&&!isRival(this,c));
@@ -259,7 +260,7 @@ class Cat {
     if(props.length && Math.random()<0.4){
       const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6*T.ball){ this.goTo(game); return; }   // someone's playing — join in
       const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
-      const cands=props.filter(p=>p.users<(p.type==='toy'?3:1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
+      const cands=props.filter(p=>p.users<(p.cap||1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
     const free=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide;
     if(!busy && Math.random()<0.05*T.scrap){   // spontaneous scrap — rivals mostly, friends never
       const o=near(this,6,c=>free(c)&&!isFriend(this,c)&&(isRival(this,c)||Math.random()<0.25)); if(o){ wrestle(this,o,false); return; } }
@@ -373,12 +374,17 @@ function spawnProp(type,x,z){
   if(type==='water'){ box(g,1.1,0.3,1.1,0x6c8ed6,0,0.15,0); box(g,0.9,0.1,0.9,0x4a6cb0,0,0.31,0); p.fill=box(g,0.8,0.16,0.8,0x9fd0ff,0,0.42,0); p.fillY0=0.42; p.fillH=0.16; p.amount=6; }
   if(type==='post'){ box(g,1.4,0.25,1.4,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,2.4,8),mat(0xd8c3a5)); c.position.y=1.45; g.add(c); box(g,1.0,0.2,1.0,0x8b5a3c,0,2.75,0); box(g,0.7,0.12,0.7,0xb9574a,0,2.9,0); p.r=0.75; }
   if(type==='box'){ const c=0xc9a06a, d=0xa8824f; box(g,1.7,0.1,1.5,d,0,0.05,0); box(g,1.7,0.9,0.1,c,0,0.5,-0.7); box(g,1.7,0.9,0.1,c,0,0.5,0.7); box(g,0.1,0.9,1.5,c,-0.8,0.5,0); box(g,0.1,0.9,1.5,c,0.8,0.5,0); const flap=box(g,0.9,0.06,0.6,d,0,0.98,0.95); flap.rotation.x=0.6; p.r=0.95; p.h=0; }
+  if(type==='bed'){ box(g,4.2,0.5,2.8,0x8b5a3c,0,0.25,0); box(g,4.0,0.4,2.6,0xf1e6d6,0,0.7,0); box(g,1.2,0.3,2.2,0xffffff,-1.3,1.0,0); box(g,2.4,0.25,2.6,0x7fa7d9,0.7,0.95,0); box(g,4.4,1.4,0.25,0x8b5a3c,0,1.0,-1.45); p.r=1.9; p.h=0.9; p.cap=2; p.sx=1; }
+  if(type==='couch'){ box(g,4.4,0.6,1.8,0x7a5c8f,0,0.3,0); box(g,4.4,0.5,1.5,0x8f6fa6,0,0.75,0.1); box(g,4.4,1.3,0.5,0x7a5c8f,0,1.15,-0.75); box(g,0.5,1.1,1.8,0x7a5c8f,-2.2,0.85,0); box(g,0.5,1.1,1.8,0x7a5c8f,2.2,0.85,0); p.r=1.8; p.h=1.0; p.cap=2; p.sx=1; }
+  if(type==='counter'){ box(g,3.6,1.6,1.4,0xf3f0ea,0,0.8,0); box(g,3.8,0.15,1.6,0x7b6a58,0,1.65,0); box(g,0.9,0.06,0.15,0x999999,-0.9,0.9,0.71); box(g,0.9,0.06,0.15,0x999999,0.9,0.9,0.71); p.r=1.6; p.h=1.72; p.cap=2; p.sx=1; }
+  if(type==='tree'){ const t=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.5,3,8),mat(0x7a4b2a)); t.position.y=1.5; g.add(t); for(const [x,y,z,r] of [[0,3.6,0,1.6],[-1.1,3.0,0.4,1.1],[1.0,3.2,-0.5,1.2],[0.3,4.4,0.6,1.0]]){ const b=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat(0x5aa14f)); b.position.set(x,y,z); g.add(b); }
+    box(g,2.2,0.25,0.5,0x7a4b2a,1.0,2.2,0.3); p.r=1.3; p.h=2.35; p.cap=1; }
   if(type==='perch'){ box(g,0.6,0.25,0.6,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.5,8),mat(0xd8c3a5)); c.position.y=0.9; g.add(c); box(g,2.0,0.18,1.6,0x8b5a3c,0,1.7,0); box(g,1.8,0.08,1.4,0xb9574a,0,1.83,0); p.r=1.0; p.h=1.87; }
   if(type==='toy'){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8),mat(pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff]))); b.position.y=0.35; g.add(b); p.ball=b; p.r=0.35; p.vx=0; p.vz=0; }
   propVisual(p); props.push(p); return p;
 }
-function clearProps(){ for(const p of props){ scene.remove(p.mesh); } props=[]; for(const c of cats.values()){ c.prop=null; } saveProps(); }
-function saveProps(){ net.send({type:'props', props:props.map(p=>({type:p.type,x:p.x,z:p.z}))}); }
+function clearProps(){ for(const p of [...props]) if(!p.env) removeProp(p); saveProps(); }   // furniture that belongs to the room stays
+function saveProps(){ net.send({type:'props', props:props.filter(p=>!p.env&&!p.temp).map(p=>({type:p.type,x:p.x,z:p.z}))}); }
 function refill(){ for(const p of props){ if(p.amount!=null){ p.amount=6; propVisual(p); } } }
 // click-to-place
 let placing=null; const ray=new THREE.Raycaster(), floor=new THREE.Plane(new THREE.Vector3(0,1,0),0), hit=new THREE.Vector3();
@@ -529,6 +535,39 @@ if(q.get('ui')==='0') document.body.classList.add('hidden');
 if(q.get('bg')==='0') document.body.classList.remove('demo-bg');
 if(q.get('tags')==='0') labels.classList.add('notags');
 
+// ---------- environments ----------
+// a floor, walls and decor; some furniture doubles as a prop cats can get on. Chosen by ?env=, else the server setting.
+const ENVS=['none','bedroom','kitchen','living','garden'], PERCHY=['bed','couch','counter','tree'];
+let envGroup=null, envName='none', envLocked=false;
+function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&(envGroup||name==='none')) return; envName=name;
+  if(envGroup){ scene.remove(envGroup); envGroup=null; } for(const p of [...props]) if(p.env) removeProp(p);
+  document.body.classList.toggle('env', name!=='none');
+  if(name==='none') return;
+  const g=envGroup=new THREE.Group(); scene.add(g);
+  const W=XMAX+3.5, ZB=ZMIN-3.5, ZF=ZMAX+4, H=10;
+  const walls=c=>{ box(g,2*W,H,0.3,c,0,H/2,ZB); box(g,0.3,H,ZF-ZB,darken(c,0.88),-W,H/2,(ZB+ZF)/2); box(g,0.3,H,ZF-ZB,darken(c,0.88),W,H/2,(ZB+ZF)/2); box(g,2*W,0.25,0.35,darken(c,0.7),0,0.12,ZB+0.05); };
+  const floor=c=>box(g,2*W,0.2,ZF-ZB,c,0,-0.1,(ZB+ZF)/2);
+  const win=(x,y=5.2)=>{ box(g,3.4,2.8,0.1,0x9fd8ff,x,y,ZB+0.2); box(g,3.8,0.22,0.2,0xffffff,x,y+1.5,ZB+0.25); box(g,3.8,0.22,0.2,0xffffff,x,y-1.5,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x-1.8,y,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x+1.8,y,ZB+0.25); box(g,0.15,2.8,0.15,0xffffff,x,y,ZB+0.27); box(g,0.9,0.9,0.4,0xffffff,x+0.9,y+0.6,ZB+0.3); };
+  const furn=(type,x,z)=>{ const p=spawnProp(type,x,z); p.env=true; return p; };
+  if(name==='bedroom'){ floor(0xb59a7f); walls(0xcdb6da); win(4.5); box(g,7.5,0.06,4.6,0xd9788a,-2.5,0.03,-1); box(g,6.5,0.04,3.8,0xe89aa8,-2.5,0.07,-1);
+    furn('bed',-7,-6.2); box(g,1.3,1.2,1.3,0x8b5a3c,-2.6,0.6,-8.6); box(g,0.15,0.9,0.15,0x333333,-2.6,1.65,-8.6); box(g,1.0,0.7,1.0,0xffe9a8,-2.6,2.4,-8.6);
+    box(g,2.6,3.2,0.08,0xffb3c6,-9.5,5.4,ZB+0.2); box(g,1.8,1.3,0.1,0xf28c38,-9.5,5.6,ZB+0.25); box(g,1.2,0.4,0.1,0x2b2b33,-9.5,4.6,ZB+0.25);
+    box(g,2.2,2.0,1.2,0x8b5a3c,10,1.0,-8.5); box(g,0.9,0.08,0.9,0x5aa14f,10,2.4,-8.5); }
+  if(name==='kitchen'){ floor(0xe6e0d3); for(let i=-3;i<=3;i++) for(let j=-2;j<=2;j++) if((i+j)%2===0) box(g,3.9,0.02,2.9,0xd6cfc0,i*4,0.01,j*3-2); walls(0xf3e7c6); win(-1);
+    box(g,2.4,5.2,1.4,0xdde3e8,10.5,2.6,-9.0); box(g,0.15,1.2,0.15,0x8a8f96,9.5,3.4,-8.2); box(g,2.4,0.1,1.4,0xb8c0c8,10.5,3.6,-9.0);
+    furn('counter',-8,-8.6); furn('counter',-4.2,-8.6); box(g,2.2,0.08,1.1,0x9fd0ff,-8,1.8,-8.6);
+    box(g,3.4,1.6,1.4,0xd8d8d8,3.5,0.8,-8.6); for(const [x,z] of [[-0.8,-0.35],[0.8,-0.35],[-0.8,0.35],[0.8,0.35]]) box(g,0.7,0.06,0.7,0x222222,3.5+x,1.64,-8.6+z); box(g,3.4,0.9,0.15,0xc9c9c9,3.5,2.05,-9.25);
+    box(g,3,1.3,2,0x8b5a3c,7,0.65,-1.5); box(g,3.2,0.12,2.2,0xa0693f,7,1.36,-1.5); }
+  if(name==='living'){ floor(0xa78b6a); walls(0xd8e2c4); win(6); box(g,8,0.06,5,0x7a9bd1,-1,0.03,-1.5);
+    furn('couch',-6.5,-6.5); box(g,3.2,0.5,1.6,0x8b5a3c,-6.5,0.25,-2.8); box(g,3.4,0.1,1.8,0xa0693f,-6.5,0.55,-2.8);
+    box(g,3.6,0.9,1.2,0x3a3a3a,5.5,0.45,-9.0); box(g,3.4,2.0,0.2,0x111111,5.5,2.1,-9.0); box(g,3.0,1.7,0.05,0x2a4a6a,5.5,2.1,-8.88);
+    box(g,2.4,5.0,1.0,0x8b5a3c,11,2.5,-9.0); for(let i=0;i<4;i++){ box(g,2.2,0.08,0.9,0xa0693f,11,0.9+i*1.2,-9.0); for(let k=0;k<5;k++) box(g,0.3,0.9,0.7,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),10.1+k*0.42,1.4+i*1.2,-9.0); }
+    box(g,1.0,0.9,1.0,0xc9764b,-11,0.45,-8.5); const pl=new THREE.Mesh(new THREE.SphereGeometry(1.1,10,8),mat(0x5aa14f)); pl.position.set(-11,1.9,-8.5); g.add(pl); }
+  if(name==='garden'){ floor(0x6fae5a); box(g,2*W,H,0.3,0x9fd3ff,0,H/2,ZB); const sun=new THREE.Mesh(new THREE.CircleGeometry(1.4,24),new THREE.MeshBasicMaterial({color:0xffe27a})); sun.position.set(-9,8,ZB+0.2); g.add(sun);
+    for(let x=-W;x<=W;x+=2.4){ box(g,0.3,1.8,0.3,0xc9a06a,x,0.9,ZB+0.6); } box(g,2*W,0.25,0.15,0xc9a06a,0,1.3,ZB+0.6); box(g,2*W,0.25,0.15,0xc9a06a,0,0.6,ZB+0.6);
+    for(let i=0;i<14;i++){ const x=rnd(-W+1,W-1), z=rnd(ZB+1,ZB+2.2); box(g,0.08,0.5,0.08,0x3f9b3f,x,0.25,z); box(g,0.3,0.25,0.3,pick([0xff6b6b,0xffd166,0xff9ecf,0xffffff]),x,0.55,z); }
+    furn('tree',8.5,-6); box(g,1.6,0.35,1.6,0x8a8f96,-8,0.17,-7.5); box(g,1.2,0.3,1.2,0x9aa0a8,-6.3,0.15,-8.2); }
+}
 // ---------- no-go zones ----------
 // Screen-space rects (fractions of the viewport — the webcam, alerts box…) turned into floor-space convex polygons.
 // Top edge unprojects at foot level, bottom edge at head height, so a cat can't poke its head up into the rect.
@@ -571,6 +610,8 @@ addEventListener('resize', rebuildZones);
 // ?nogo=x,y,w,h;x,y,w,h  (fractions, or percentages if any value > 1)   ?zones=1 shows them even in overlay mode
 if(q.get('nogo')){ zones=q.get('nogo').split(';').map(s=>{ let [x,y,w,h]=s.split(',').map(Number); if([x,y,w,h].some(v=>v>1)){ x/=100;y/=100;w/=100;h/=100; } return {x,y,w,h}; }).filter(r=>[r.x,r.y,r.w,r.h].every(Number.isFinite)); zonesLocked=true; }
 if(q.get('zones')==='1') document.body.classList.add('showzones');
+if(q.get('env')){ envLocked=true; setEnv(q.get('env')); }
+document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
 rebuildZones();
 
 // ---------- companion page (/play) ----------
@@ -612,6 +653,7 @@ function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); 
 let booted=false;
 function applyInit(m){
   if(m.maxCats) MAX_CATS=m.maxCats;
+  if(!envLocked && m.env) setEnv(m.env);
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(booted){   // reconnect (server restart, wifi blip): keep everything that's on stage, only add what we're missing
