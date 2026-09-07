@@ -1,13 +1,18 @@
 {
   "name": "chat-cats",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Cozy voxel cat overlay for Twitch/Kick chat",
+  "type": "module",
   "scripts": {
-    "dev": "live-server overlay --port=8080 --no-browser",
-    "open": "live-server overlay --port=8080"
+    "start": "node --no-warnings=ExperimentalWarning server/index.js",
+    "dev": "node --watch --no-warnings=ExperimentalWarning server/index.js"
   },
-  "devDependencies": {
-    "live-server": "^1.2.2"
+  "dependencies": {
+    "tmi.js": "^1.8.5",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

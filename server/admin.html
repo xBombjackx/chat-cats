@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chat Cats — admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+<style>
+  body{background:#2e2740;padding:24px;overflow:auto}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .panel{position:static;width:340px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#c44;margin-right:6px;vertical-align:middle}
+  .dot.on{background:#5c5}
+  #log{max-height:260px}
+  code{background:var(--paper2);padding:1px 5px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h2>Status</h2>
+    <div><span class="dot" id="d-ws"></span>server</div>
+    <div><span class="dot" id="d-twitch"></span>twitch</div>
+    <div><span class="dot" id="d-kick"></span>kick</div>
+    <div><span class="dot" id="d-ov"></span>overlay(s) connected: <b id="ovn">0</b></div>
+    <div class="hint">Stream Deck: GET or POST <code>/api/event/&lt;name&gt;</code>, e.g. <code>http://localhost:8080/api/event/fish</code>.<br>
+    Fake chat: <code>/api/chat?user=bob&amp;msg=!meow</code></div>
+  </div>
+
+  <div class="panel">
+    <h2>Events</h2>
+    <div class="row">
+      <button class="ev" data-ev="wrestlemania">Cat Wrestlemania</button>
+      <button class="ev" data-ev="catnip">Load catnip</button>
+      <button class="ev" data-ev="fish">Fish rain</button>
+      <button class="ev" data-ev="laser">Laser pointer</button>
+      <button class="ev" data-ev="nap">Nap time</button>
+    </div>
+    <div class="row"><button data-ev="refill">Refill bowls</button><button data-ev="clearprops">Clear props</button></div>
+    <div class="hint">Props are placed by clicking the stage on the overlay page (press H there to show the UI).</div>
+  </div>
+
+  <div class="panel">
+    <h2>Chat as someone</h2>
+    <div class="row">
+      <input class="user" type="text" id="user" value="streamer" aria-label="username" style="width:100px">
+      <input class="msg" type="text" id="msg" placeholder="!cat orange crown" aria-label="chat message" style="flex:1">
+      <button id="send">Send</button>
+    </div>
+    <div class="row">
+      <button data-m="!cat">!cat</button><button data-m="!meow">!meow</button><button data-m="!jump">!jump</button>
+      <button data-m="!zoomies">!zoomies</button><button data-m="!sleep">!sleep</button><button data-m="!hiss">!hiss</button><button data-m="!leave">!leave</button>
+    </div>
+    <div id="log"></div>
+  </div>
+</div>
+<script>
+  const $=s=>document.querySelector(s), log=$('#log');
+  let ws;
+  function connect(){
+    ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+    ws.onopen=()=>{ ws.send(JSON.stringify({type:'hello',role:'admin'})); $('#d-ws').classList.add('on'); };
+    ws.onclose=()=>{ $('#d-ws').classList.remove('on'); setTimeout(connect,1500); };
+    ws.onmessage=e=>{ const m=JSON.parse(e.data);
+      if(m.type==='status'){ $('#d-twitch').classList.toggle('on',m.twitch); $('#d-kick').classList.toggle('on',m.kick); $('#d-ov').classList.toggle('on',m.overlays>0); $('#ovn').textContent=m.overlays; }
+      if(m.type==='log'){ const d=document.createElement('div'); d.innerHTML=`<span style="opacity:.6">[${m.platform}]</span> <b></b>: <span></span>`; d.querySelector('b').textContent=m.user; d.querySelector('span:last-child').textContent=m.msg; log.prepend(d); while(log.children.length>60) log.lastChild.remove(); }
+    };
+  }
+  connect();
+  const send=(user,msg)=>ws?.readyState===1 && ws.send(JSON.stringify({type:'chat',user,msg}));
+  $('#send').onclick=()=>{ const m=$('#msg').value; if(!m) return; send($('#user').value.trim()||'streamer',m); $('#msg').value=''; };
+  $('#msg').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#send').click(); });
+  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>send($('#user').value.trim()||'streamer',b.dataset.m));
+  document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>ws?.readyState===1 && ws.send(JSON.stringify({type:'event',name:b.dataset.ev})));
+</script>
+</body>
+</html>

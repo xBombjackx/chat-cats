@@ -28,8 +28,8 @@ function parseColor(s, table){ if(table[s]!=null) return table[s]; if(/^#?[0-9a-
 
 // ---------- cat ----------
 class Cat {
-  constructor(name, look){
-    this.name = name;
+  constructor(key, name, look){
+    this.key = key; this.name = name; this.last = performance.now();
     this.look = Object.assign({body:'orange', eyes:'green', pattern:'solid', hat:'none'}, look);
     this.g = new THREE.Group();
     this.g.position.set(rnd(-XMAX,XMAX), 0, rnd(ZMIN,ZMAX));
@@ -183,22 +183,33 @@ class Cat {
 }
 
 // ---------- registry + commands ----------
-const cats = new Map();
+const cats = new Map();   // key (platform:user) -> Cat
+let MAX_CATS = 30;
 const labels = document.getElementById('labels');
 const log = document.getElementById('log');
-function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b>${user}</b>: ${msg}${note?` <span style="opacity:.6">— ${note}</span>`:''}`; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
+const net = { send(){} };   // replaced by net.js when the server is around
+function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span>${note?` <span style="opacity:.6">— ${note}</span>`:''}`; d.querySelector('b').textContent=user; d.querySelector('span').textContent=msg; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
+function findCat(name){ name=name.toLowerCase(); for(const c of cats.values()) if(c.name.toLowerCase()===name) return c; return null; }
+function removeCat(cat){ cat.remove(); cats.delete(cat.key); }
+function spawnCat(key, name, look, quiet){
+  if(cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||c.last<old.last) old=c; if(old){ old.say('bye'); removeCat(old); } }   // LRU evict
+  const cat=new Cat(key, name, look); cats.set(key,cat); if(!quiet) cat.say('hi!'); return cat;
+}
 
-function handleChat(user, msg){
+function handleChat(user, msg, key){
+  key = key || 'sim:'+user.toLowerCase();
   msg = msg.trim(); if(!msg.startsWith('!')) return;
   const parts = msg.slice(1).toLowerCase().split(/\s+/); const cmd = parts.shift(); let note='';
-  let cat = cats.get(user);
+  let cat = cats.get(key);
+  if(cat) cat.last=performance.now();
   if(cmd==='cat'){
     const look = cat ? {...cat.look} : {};
     for(let i=0;i<parts.length;i++){ const p=parts[i];
       if(p==='eyes' && parts[i+1]){ look.eyes=parts[++i]; continue; }
       if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
-    if(!cat){ cat=new Cat(user, look); cats.set(user,cat); cat.say('hi!'); note='spawned'; }
+    if(!cat){ cat=spawnCat(key, user, look); note='spawned'; }
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
+    net.send({type:'cat', key, name:user, look:cat.look});
   } else if(!cat){ note='no cat yet — use !cat'; }
   else if(cmd==='meow') cat.say(pick(['meow','mrrp','meow~','MEOW','mrow?','prrr']));
   else if(cmd==='jump') cat.jump();
@@ -207,14 +218,14 @@ function handleChat(user, msg){
   else if(cmd==='loaf'){ cat.setState('loaf'); cat.timer=8; }
   else if(cmd==='wave') cat.wave();
   else if(cmd==='zoomies') zoomies(cat, 6);
-  else if(cmd==='leave'){ cat.say('bye'); setTimeout(()=>{cat.remove(); cats.delete(user);}, 900); }
+  else if(cmd==='leave'){ cat.say('bye'); net.send({type:'catgone', key}); setTimeout(()=>removeCat(cat), 900); }
   else if(cmd==='stretch') cat.play('stretch',1.5);
   else if(cmd==='roll') cat.play('roll',1.2);
   else if(cmd==='pounce') cat.play('pounce',1.0);
   else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(pick(['hsss','HISS','>:3'])); }
   else if(cmd==='shake') cat.play('shake',0.7);
   else if(cmd==='pet'||cmd==='boop'||cmd==='hug'){
-    const who=(parts[0]||'').replace(/^@/,''); const other=cats.get(who);
+    const who=(parts[0]||'').replace(/^@/,''); const other=findCat(who);
     if(!other||other===cat) note='who? try !pet @name';
     else { cat.noCollide=other.noCollide=true; const side=cat.g.position.x<other.g.position.x?-1:1;
       cat.walkTo(other.g.position.x+side*1.15, other.g.position.z, 3.2);
@@ -242,12 +253,13 @@ function spawnProp(type,x,z){
   if(type==='toy'){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8),mat(pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff]))); b.position.y=0.35; g.add(b); p.ball=b; p.r=0.35; p.vx=0; p.vz=0; }
   propVisual(p); props.push(p); return p;
 }
-function clearProps(){ for(const p of props){ scene.remove(p.mesh); } props=[]; for(const c of cats.values()){ c.prop=null; } }
+function clearProps(){ for(const p of props){ scene.remove(p.mesh); } props=[]; for(const c of cats.values()){ c.prop=null; } saveProps(); }
+function saveProps(){ net.send({type:'props', props:props.map(p=>({type:p.type,x:p.x,z:p.z}))}); }
 function refill(){ for(const p of props){ if(p.amount!=null){ p.amount=6; propVisual(p); } } }
 // click-to-place
 let placing=null; const ray=new THREE.Raycaster(), floor=new THREE.Plane(new THREE.Vector3(0,1,0),0), hit=new THREE.Vector3();
 canvas.addEventListener('pointerdown',e=>{ if(!placing) return; ray.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1),camera);
-  if(ray.ray.intersectPlane(floor,hit)) spawnProp(placing, clamp(hit.x,-XMAX,XMAX), clamp(hit.z,ZMIN,ZMAX)); placing=null; document.body.style.cursor=''; });
+  if(ray.ray.intersectPlane(floor,hit)){ spawnProp(placing, clamp(hit.x,-XMAX,XMAX), clamp(hit.z,ZMIN,ZMAX)); saveProps(); } placing=null; document.body.style.cursor=''; });
 addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.body.style.cursor=''; } });
 
 // ---------- streamer events ----------
@@ -258,11 +270,14 @@ const events = {
     const [a,b] = list.sort(()=>Math.random()-0.5).slice(0,2); busy=true;
     const mx=rnd(-4,4), mz=rnd(ZMIN+0.3,ZMAX-0.3);
     a.say('👊'); b.say('😾'); a.noCollide=b.noCollide=true; a.walkTo(mx-1,mz,4); b.walkTo(mx+1,mz,4);
-    setTimeout(()=>{ a.facing=0; b.facing=Math.PI; let n=0;
-      const iv=setInterval(()=>{ const c=n%2?a:b; c.jump(); (n%2?b:a).spin(); c.say(pick(['POW','BONK','BAP','WHAP','HISS']),'pow'); if(++n>7) clearInterval(iv); }, 380);
-      setTimeout(()=>{ const w=Math.random()<0.5?a:b, l=w===a?b:a; l.setState('loaf'); l.timer=6; l.say('😵'); w.jump(); setTimeout(()=>w.jump(),500); w.say('🏆 '+w.name+' wins!'); busy=false; setTimeout(()=>{a.noCollide=b.noCollide=false;},1500); }, 3400);
+    const bail=()=>{ if(a.dead||b.dead){ busy=false; a.noCollide=b.noCollide=false; return true; } return false; };
+    setTimeout(()=>{ if(bail()) return; a.facing=0; b.facing=Math.PI; let n=0;
+      const iv=setInterval(()=>{ if(bail()){ clearInterval(iv); return; } const c=n%2?a:b; c.jump(); (n%2?b:a).spin(); c.say(pick(['POW','BONK','BAP','WHAP','HISS']),'pow'); if(++n>7) clearInterval(iv); }, 380);
+      setTimeout(()=>{ if(bail()) return; const w=Math.random()<0.5?a:b, l=w===a?b:a; l.setState('loaf'); l.timer=6; l.say('😵'); w.jump(); setTimeout(()=>{ if(!w.dead) w.jump(); },500); w.say('🏆 '+w.name+' wins!'); busy=false; setTimeout(()=>{a.noCollide=b.noCollide=false;},1500); }, 3400);
     }, 2200);
   },
+  refill(){ refill(); toast('refilled'); },
+  clearprops(){ clearProps(); toast('props cleared'); },
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
   fish(){ for(let i=0;i<14;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
@@ -296,11 +311,21 @@ if(q.get('ui')==='0') document.body.classList.add('hidden');
 if(q.get('bg')==='0') document.body.classList.remove('demo-bg');
 if(q.get('tags')==='0') labels.classList.add('notags');
 
-spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0);
-// starter cats
-handleChat('mochi_fan','!cat orange tabby crown eyes amber');
-handleChat('void_enjoyer','!cat black tuxedo beanie eyes yellow');
-handleChat('cream_puff','!cat cream calico bow eyes blue');
+function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); }
+// server sends this on connect: persisted cats + prop layout
+function applyInit(m){
+  if(m.maxCats) MAX_CATS=m.maxCats;
+  for(const p of props) scene.remove(p.mesh); props=[];
+  if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else defaultProps();
+  for(const c of cats.values()) c.remove(); cats.clear();
+  for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
+}
+if(q.get('demo')==='1'){   // standalone demo, no server
+  defaultProps();
+  handleChat('mochi_fan','!cat orange tabby crown eyes amber');
+  handleChat('void_enjoyer','!cat black tuxedo beanie eyes yellow');
+  handleChat('cream_puff','!cat cream calico bow eyes blue');
+}
 
 // ---------- loop ----------
 let last=performance.now();
