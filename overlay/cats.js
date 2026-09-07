@@ -19,6 +19,11 @@ const COLORS = {orange:0xf28c38, ginger:0xf28c38, black:0x2b2b33, white:0xf5f1ea
 const EYES = {green:0x5fd36a, blue:0x5aa9ff, yellow:0xffd54a, amber:0xffa62b, pink:0xff7bd1, red:0xff5252, gold:0xffd54a};
 const HATS = ['none','crown','beanie','party','bow','halo'];
 const PATTERNS = ['solid','tabby','tuxedo','calico'];
+// personality: multipliers on the idle AI. Picked from the key hash like everything else secret.
+const TRAITS = { chill:{}, lazy:{walk:0.5,scrap:0.5,zoom:0,follow:0.7,ambush:0.5,sleep:1.7,speed:0.85,sit:1.6},
+  zoomy:{walk:1.5,zoom:2,sleep:0.6,speed:1.3,sit:0.6,ball:1.6}, clingy:{scrap:0.4,follow:2,hiss:0.4,ambush:0.5,greet:2,sit:1.2},
+  grumpy:{walk:0.8,scrap:2,follow:0.4,hiss:2.5,ambush:1.8,greet:0.5,hungry:0.6} };
+const TRAIT_DEF = {walk:1,scrap:1,zoom:1,follow:1,ambush:1,sleep:1,speed:1,sit:1,ball:1,hiss:1,greet:1,hungry:0.7};
 const SIZES = {adult:[1,1,1], kitten:[0.62,0.62,0.62], fat:[1.12,0.95,1.3], skinny:[0.95,1.06,0.8], chonk:[1.12,0.95,1.3], smol:[0.62,0.62,0.62]};   // body scale multipliers x,y,z
 const pick = a => a[Math.floor(Math.random()*a.length)];
 const rnd = (a,b) => a + Math.random()*(b-a);
@@ -39,7 +44,9 @@ class Cat {
     scene.add(this.g);
     this.facing = Math.random()<0.5?0:Math.PI;
     let hh=0; for(const ch of key) hh=(hh*31+ch.charCodeAt(0))>>>0;
-    this.sleepStyle=['loaf','side','back'][hh%3]; this.ph=(hh%1000)/159;   // secret trait + neck wander phase
+    this.sleepStyle=['loaf','side','back'][hh%3]; this.ph=(hh%1000)/159;   // secret traits + neck wander phase
+    this.trait=['chill','lazy','zoomy','clingy','grumpy'][(hh>>>3)%5]; this.T={...TRAIT_DEF, ...TRAITS[this.trait]};
+    this.hunger=rnd(0.2,0.6);   // 0 = just ate, 1 = starving (≈15 min)
     this.elev=0; this.onProp=null; this.inBox=false;
     this.build();
     this.state = 'idle'; this.t = 0; this.timer = rnd(1,3); this.target = null; this.speed = 2.2;
@@ -93,7 +100,7 @@ class Cat {
   }
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
-  walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
+  walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2*this.T.speed; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
   hopTo(x,z,y,into){ const from={x:this.g.position.x,z:this.g.position.z,y:this.elev}; this.play('hop',0.6,true); this.anim.from=from; this.anim.to={x,z,y,into:!!into}; }
   dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
   dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
@@ -107,7 +114,7 @@ class Cat {
   spin(){ this.spinT=0; }
   wave(){ this.waveT=0; this.setState('idle'); this.timer=2; }
   update(dt, now){
-    this.t += dt;
+    this.t += dt; if(!PLAY) this.hunger=Math.min(1,this.hunger+dt/900);
     const g=this.g, b=this.body, s=this.state;
     // eye blink
     const blink = (Math.sin(now*1.3+this.g.position.x*3)>0.985)||s==='sleep';
@@ -147,8 +154,9 @@ class Cat {
     } else {
       for(const l of this.legs) l.rotation.z *= 0.8;
       if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle();
+        if(!PLAY && !this.anim && Math.random()<dt*0.02){ if(this.hunger>0.85) this.say(pick(['😾','hungry…','grr','feed me'])); else if(this.hunger<0.15) this.say(pick(['💕','prrr','😌'])); }   // mood shows
         if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ this.look={x:o.g.position.x,z:o.g.position.z,until:now+rnd(1.2,2.5)}; if(Math.abs(normA(Math.atan2(-(o.g.position.z-g.position.z), o.g.position.x-g.position.x)-this.facing))>1.2) faceAt(this,o); const aff=affinity(this,o);
-          if(aff<-0.55 && Math.random()<0.35){ this.play('arch',0.8); this.say(pick(['hss','😾','go away'])); } else if(aff>0.55 && Math.random()<0.2) this.say(pick(['💕',':3','prrr'])); } } } }
+          if((aff<-0.55 || (this.T.hiss>2 && aff<0.2)) && Math.random()<0.35*this.T.hiss){ this.play('arch',0.8); this.say(pick(['hss','😾','go away'])); } else if(aff>0.55 && Math.random()<0.2*this.T.greet) this.say(pick(['💕',':3','prrr'])); } } } }
       if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; this.head.rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       else if(!lying) b.rotation.z *= 0.8;
       if(s==='loaf'){ this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
@@ -219,8 +227,8 @@ class Cat {
   }
   useProp(p){
     this.facing=Math.atan2(-(p.z-this.g.position.z), p.x-this.g.position.x);
-    if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
-    else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('drink',3); this.say('lap lap'); }
+    if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=0; this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
+    else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=Math.max(0,this.hunger-0.15); this.play('drink',3); this.say('lap lap'); }
     else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
     else if(p.type==='box'||p.type==='perch'){ this.onProp=p; this.noCollide=true; this.hopTo(p.x,p.z,p.h||0,p.type==='box'); this.say(pick(p.type==='box'?['box!','if i fits…','mine now']:['👀','up here','👑'])); }
     else if(p.type==='toy'){ this.play('bat',1.0); setTimeout(()=>{ if(p.mesh.parent){ p.vx=Math.cos(this.facing)*6; p.vz=-Math.sin(this.facing)*6; } },350); if(Math.random()<0.5) this.say('!');
@@ -231,35 +239,44 @@ class Cat {
   pickIdle(){
     if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
       const r=Math.random();
-      if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.6){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
+      if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.25+0.35*this.T.ambush){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
       else if(r<0.55){ this.setState('loaf'); this.timer=rnd(4,8); } else if(r<0.7){ this.setState('sleep'); this.timer=rnd(6,10); }
       else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.hiding=false; this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
       return; }
+    const T=this.T;
+    if(!PLAY && this.hunger>T.hungry && Math.random()<0.6){   // hungry: find food, or stare at the empty bowl and complain
+      const bowls=props.filter(p=>p.type==='bowl'), full=bowls.filter(p=>p.amount>0&&p.users<1);
+      if(full.length){ this.goTo(pick(full)); return; }
+      if(bowls.length && Math.random()<0.5){ const b=pick(bowls); this.walkTo(b.x+rnd(-1.5,1.5), Math.min(ZMAX,b.z+1.6)); this.onArrive=()=>{ this.facing=-Math.PI/2; this.play('peek',2.5); this.say(pick(['feed me','bowl is empty 😾','hungry…','🍽️👀'])); }; return; } }
     if(props.length && Math.random()<0.4){
-      const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6){ this.goTo(game); return; }   // someone's playing — join in
+      const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6*T.ball){ this.goTo(game); return; }   // someone's playing — join in
       const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
       const cands=props.filter(p=>p.users<(p.type==='toy'?3:1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
     const free=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide;
-    if(!busy && Math.random()<0.05){   // spontaneous scrap — rivals mostly, friends never
+    if(!busy && Math.random()<0.05*T.scrap){   // spontaneous scrap — rivals mostly, friends never
       const o=near(this,6,c=>free(c)&&!isFriend(this,c)&&(isRival(this,c)||Math.random()<0.25)); if(o){ wrestle(this,o,false); return; } }
-    if(Math.random()<0.04){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
-    if(Math.random()<0.5){   // go hang out with a friend; greet on arrival
+    if(Math.random()<0.04*T.scrap){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
+    if(Math.random()<0.5*T.follow){   // go hang out with a friend; greet on arrival
       const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
-        if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
+        if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
     const rv=near(this,3,c=>isRival(this,c)); if(rv && Math.random()<0.5){ const dx=this.g.position.x-rv.g.position.x, dz=this.g.position.z-rv.g.position.z, d=Math.hypot(dx,dz)||1; this.say(pick(['hmph','…'])); this.walkTo(this.g.position.x+dx/d*4, this.g.position.z+dz/d*3); return; }   // not sitting next to *that* one
-    const r=Math.random();
-    if(r<0.45) this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4));
-    else if(r<0.65){ this.setState('sit'); this.timer=rnd(2,5); }
-    else if(r<0.74){ this.setState('groom'); this.timer=rnd(1,2); }
-    else if(r<0.77) this.play('lickfoot',1.8);
-    else if(r<0.8) this.play('lickbutt',2.0);
-    else if(r<0.88){ this.setState('loaf'); this.timer=rnd(3,6); }
-    else if(r<0.91){ this.setState('sleep'); this.timer=rnd(5,9); }
-    else if(r<0.93) this.play('stretch',1.5);
-    else if(r<0.95) this.play('twitch',0.8);
-    else if(r<0.97) this.play('shake',0.7);
-    else if(r<0.985){ this.facing=-Math.PI/2; this.timer=rnd(2,4); this.play('peek',2.5); }   // look at the viewer
-    else { this.facing += Math.PI; this.timer=rnd(1,3); }
+    const pool=[['walk',0.45*T.walk],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',0.08*T.sleep],['sleep',0.03*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom]];
+    let r=Math.random()*pool.reduce((a,[,w])=>a+w,0), act='walk'; for(const [a,w] of pool){ r-=w; if(r<=0){ act=a; break; } }
+    switch(act){
+      case 'walk': this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4)); break;
+      case 'sit': this.setState('sit'); this.timer=rnd(2,5)*T.sit; break;
+      case 'groom': this.setState('groom'); this.timer=rnd(1,2); break;
+      case 'lickfoot': this.play('lickfoot',1.8); break;
+      case 'lickbutt': this.play('lickbutt',2.0); break;
+      case 'loaf': this.setState('loaf'); this.timer=rnd(3,6)*T.sleep; break;
+      case 'sleep': this.setState('sleep'); this.timer=rnd(5,9)*T.sleep; break;
+      case 'stretch': this.play('stretch',1.5); break;
+      case 'twitch': this.play('twitch',0.8); break;
+      case 'shake': this.play('shake',0.7); break;
+      case 'peek': this.facing=-Math.PI/2; this.timer=rnd(2,4); this.play('peek',2.5); break;   // look at the viewer
+      case 'zoom': zoomies(this,3); break;
+      default: this.facing += Math.PI; this.timer=rnd(1,3);
+    }
   }
   remove(){ this.dead=true; this.releaseProp(); if(this.pal){ this.pal.noCollide=false; this.pal=null; } scene.remove(this.g); this.tag.remove(); if(this.bubbleEl) this.bubbleEl.remove(); }
 }
@@ -588,7 +605,7 @@ race.start=function(opts={}){ if(this.phase!=='idle'||PLAY) return; this.opts=op
   }, (opts.joinSecs||20)*1000); };
 race.countdown=function(){ let n=3; const tick=()=>{ if(this.phase!=='lineup') return; if(n>0){ banner(String(n)); for(const c of this.racers) if(!c.dead) c.say(String(n)); n--; setTimeout(tick,900); } else { banner('GO!',1500); this.go(); } }; tick(); };
 race.go=function(){ this.phase='running'; this.t=0; this.finishX=XMAX-1.2;
-  this.racers.forEach((c,i)=>{ c.raceBase=rnd(2.6,3.6)*(c.look.size==='fat'?0.85:c.look.size==='kitten'?1.05:1); c.raceZ=this.lane(i,this.racers.length); c.nextDistract=rnd(1.5,4); this.run(c); });
+  this.racers.forEach((c,i)=>{ c.raceBase=rnd(2.6,3.6)*(c.look.size==='fat'?0.85:c.look.size==='kitten'?1.05:1)*(0.9+0.1*c.T.speed); c.raceZ=this.lane(i,this.racers.length); c.nextDistract=rnd(1.5,4); this.run(c); });
   this.butterfly=spawnButterfly(); };
 race.run=function(c){ if(c.dead) return; c.racing=true; c.walkTo(this.finishX+0.6, c.raceZ, c.raceBase); c.onArrive=()=>this.finish(c); };
 race.update=function(dt,now){ if(this.phase!=='running') return; this.t+=dt;

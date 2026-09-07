@@ -76,6 +76,8 @@ http://localhost:8080/api/settings                       GET, or POST {"maxCats"
 
 Props: food bowl, water, scratch post, ball, cardboard box (cats climb in, peek out, and sometimes lie in wait to swipe at whoever walks past — which can start a fight), perch (cats hop up and lounge). Each cat also has a fixed sleeping style: loaf, on its side, or belly-up.
 
+Each cat also has a secret personality (chill, lazy, zoomy, clingy or grumpy) that weights what it does when left alone, and a hunger clock: about fifteen minutes after eating it starts hunting for a full bowl, and if there isn't one it sits by the empty bowl, stares at the camera and complains. Just-fed cats purr hearts. Refill is on the streamer panel and `/api/event/refill`.
+
 Cats have secret likes and dislikes (a stable hash per pair, nothing to configure): friends hang out together, greet with nose boops, share bowls and play ball together; rivals hiss when close, get stalked, fight over food and start scraps. Everyone else is neutral.
 
 Per-user cooldown (a ⏳ bubble shows when a command is dropped), cat cap with least-recently-active eviction (raid visitors go first). Looks persist; cats active within the respawn window come back when the overlay reloads. Prop layout persists too. Cooldown, cap and respawn window are editable live on `/admin`; `.env` values are just the defaults.
