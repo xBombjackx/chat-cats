@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chat Cats — overlay prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="demo-bg">
+<canvas id="c"></canvas>
+<div id="labels"></div>
+
+<button id="hideui" title="Press H to bring it back">Hide UI (overlay mode)</button>
+
+<div class="panel" id="chat">
+  <h2>Chat simulator</h2>
+  <div class="row">
+    <input class="user" type="text" id="user" value="mochi_fan" aria-label="username">
+    <input class="msg" type="text" id="msg" placeholder="!cat orange crown" aria-label="chat message">
+    <button id="send">Send</button>
+  </div>
+  <div class="row">
+    <button data-m="!cat">!cat</button><button data-m="!meow">!meow</button><button data-m="!jump">!jump</button>
+    <button data-m="!spin">!spin</button><button data-m="!sleep">!sleep</button><button data-m="!loaf">!loaf</button>
+    <button data-m="!wave">!wave</button><button data-m="!zoomies">!zoomies</button><button data-m="!stretch">!stretch</button><button data-m="!roll">!roll</button><button data-m="!pounce">!pounce</button><button data-m="!hiss">!hiss</button><button data-m="!shake">!shake</button><button data-m="!pet @void_enjoyer">!pet @user</button><button data-m="!leave">!leave</button>
+  </div>
+  <div class="row"><button id="rand5">Spawn 5 random chatters</button></div>
+  <div class="hint">!cat [color] [pattern] [hat] · eyes &lt;color&gt; · e.g. <i>!cat black tuxedo beanie eyes green</i><br>
+  !pet @name walks over and nuzzles them · colors: orange black white gray pink brown cream blue purple mint · patterns: solid tabby tuxedo calico · hats: crown beanie party bow halo none</div>
+  <div id="log"></div>
+</div>
+
+<div class="panel" id="stream">
+  <h2>Streamer events</h2>
+  <div class="row">
+    <button class="ev" data-ev="wrestlemania">Cat Wrestlemania</button>
+    <button class="ev" data-ev="catnip">Load catnip</button>
+    <button class="ev" data-ev="fish">Fish rain</button>
+    <button class="ev" data-ev="laser">Laser pointer</button>
+    <button class="ev" data-ev="nap">Nap time</button>
+  </div>
+  <h2 style="margin-top:10px">Props <span style="font-weight:600;opacity:.6;font-size:12px">click a button, then click the stage</span></h2>
+  <div class="row">
+    <button data-prop="bowl">Food bowl</button><button data-prop="water">Water</button>
+    <button data-prop="toy">Ball</button><button data-prop="post">Scratch post</button>
+    <button id="refill">Refill</button><button id="clearprops">Clear</button>
+  </div>
+  <div class="row"><button id="bg">Toggle demo background</button><button id="tags">Toggle name tags</button></div>
+  <div class="hint">Transparent when the demo background is off — drop it in OBS as a browser source.</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="cats.js"></script>
+</body>
+</html>
