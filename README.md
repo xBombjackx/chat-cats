@@ -61,7 +61,9 @@ If Twitch is connected with the predictions scope, each race opens a 30-second T
 Any HTTP GET or POST works:
 
 ```
-http://localhost:8080/api/event/fish          wrestlemania catnip fish laser nap refill clearprops
+http://localhost:8080/api/event/fish          wrestlemania catnip fish laser nap race feeding treat boxes vacuum doorbell cucumber confetti refill clearprops
+http://localhost:8080/api/event/treat?x=4&z=1  treat cannon: aim in stage units (x -11..11, z -7..3); omit for random
+http://localhost:8080/api/event/boxes?n=5      drop n temporary boxes (they vanish after 3 min)
 http://localhost:8080/api/chat?user=bob&msg=!meow       add &platform=twitch to test cooldowns
 http://localhost:8080/api/status
 http://localhost:8080/api/settings                       GET, or POST {"maxCats":30,"cooldownMs":2500,"respawnHours":6}

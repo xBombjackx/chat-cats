@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'refill', 'clearprops'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'refill', 'clearprops'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -75,9 +75,9 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
   broadcast({ type: 'chat', platform, user, key, msg }, 'overlay');
   broadcast({ type: 'log', platform, user, msg }, 'admin');
 }
-function fireEvent(name, by = 'admin') {
+function fireEvent(name, by = 'admin', args = {}) {
   if (!EVENTS.includes(name)) return false;
-  broadcast({ type: 'event', name, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
+  broadcast({ type: 'event', name, ...args, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
   broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
 }
@@ -170,7 +170,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...cfg, defaults: DEFAULTS });
     }
     const ev = p.match(/^\/api\/event\/([a-z]+)$/);
-    if (ev) return fireEvent(ev[1]) ? json(res, 200, { ok: true, event: ev[1] }) : json(res, 404, { ok: false, error: 'unknown event', events: EVENTS });
+    if (ev) { const args = {}; for (const k of ['x', 'z', 'n']) if (url.searchParams.has(k)) args[k] = +url.searchParams.get(k); return fireEvent(ev[1], 'admin', args) ? json(res, 200, { ok: true, event: ev[1] }) : json(res, 404, { ok: false, error: 'unknown event', events: EVENTS }); }
     if (p === '/api/chat') {
       let user = url.searchParams.get('user'), msg = url.searchParams.get('msg');
       if (req.method === 'POST') { try { const b = JSON.parse(await readBody(req) || '{}'); user = b.user ?? user; msg = b.msg ?? msg; } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }

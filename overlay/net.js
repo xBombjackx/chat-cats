@@ -13,7 +13,7 @@
       if(m.type==='init') applyInit(m);
       else if(PLAY){   // companion: mirror state, visual-only events
         if(m.type==='state') applyState(m);
-        else if(m.type==='event' && (m.name==='fish'||m.name==='laser')) events[m.name](m);
+        else if(m.type==='event' && ['fish','laser','confetti'].includes(m.name)) events[m.name](m);
         else if(m.type==='banner') banner(m.text,m.ms);
         else if(m.type==='full'){ const h=document.getElementById('playhint'); if(h) h.textContent='room is full, try again later'; }
       }
