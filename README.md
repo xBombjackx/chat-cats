@@ -31,6 +31,20 @@ Cats steer around screen rectangles (webcam, alerts) and are hard-clamped out of
 
 Add `&zones=1` to see them in overlay mode.
 
+## Twitch subs, bits, raids, follows, channel points
+
+Needs a Twitch app: [dev.twitch.tv/console](https://dev.twitch.tv/console) → Register Your Application, OAuth redirect URL `http://localhost:8080/auth/callback`, category "Chat Bot" or whatever. Put the client ID and secret in `.env`, restart, open `/admin` → **Connect Twitch**. The token is stored in SQLite and refreshes itself.
+
+What happens on the overlay:
+
+- **follow** — a cat turns to the camera, waves, says hi
+- **sub / resub** — the subscriber's cat (spawned if they don't have one) gets a party hat if they have no hat, everyone jumps, small fish rain
+- **gift subs / cheer** — fish rain scaled by count / bits, everyone celebrates on big ones
+- **raid** — a crew of visitor cats named after the raider zoom in, everyone gets the zoomies, visitors leave after 90s
+- **channel points** — map reward title → action on the admin page: an event name (`fish`, `catnip`, …) or a chat command run as the redeemer with their input appended (`Custom cat => !cat` lets viewers type `purple crown`)
+
+Simulate any of these without Twitch from the admin page, or `GET /api/test?kind=raid&user=bob&viewers=40`.
+
 ## Stream Deck / hotkeys
 
 Any HTTP GET or POST works:
@@ -58,7 +72,8 @@ Per-user cooldown (`COOLDOWN_MS`), cat cap with least-recently-active eviction (
 - `server/` — Node, no framework
   - `index.js` — http (static overlay, `/admin`, `/api/*`) + websocket hub, cooldowns
   - `twitch.js` (tmi.js) / `kick.js` (Pusher ws) → normalized `{platform, user, id, msg}`
-  - `db.js` — SQLite: cat looks, prop layout, no-go zones
+  - `twitch-auth.js` — OAuth code flow + Helix client; `eventsub.js` — EventSub websocket → `{kind, user, ...}`
+  - `db.js` — SQLite: cat looks, prop layout, no-go zones, twitch token, redeem map
   - `admin.html` — streamer control page
 
 Cats are keyed `platform:username`; `!pet @name` matches by display name.
@@ -70,5 +85,5 @@ Cats are keyed `platform:username`; `!pet @name` matches by display name.
 - [x] per-user cooldowns, cat cap with LRU eviction
 - [x] admin page / Stream Deck HTTP endpoints for events
 - [x] no-go zones (webcam rect etc.)
-- [ ] channel-point / sub / raid reactions (needs Twitch EventSub + token)
+- [x] channel-point / sub / raid reactions via EventSub
 - [ ] companion site for click interaction (Twitch Extension later)

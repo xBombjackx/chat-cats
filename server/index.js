@@ -8,6 +8,8 @@ import { WebSocketServer } from 'ws';
 import { openDb } from './db.js';
 import { connectTwitch } from './twitch.js';
 import { connectKick } from './kick.js';
+import { makeTwitchAuth } from './twitch-auth.js';
+import { startEventSub } from './eventsub.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fine */ }
@@ -20,7 +22,7 @@ const RESPAWN_HOURS = +env('RESPAWN_HOURS', 6);   // cats seen within this windo
 const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'refill', 'clearprops'];
 
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
-const status = { twitch: false, kick: false, overlays: 0 };
+const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0 };
 
 // ---------- websocket hub ----------
 const clients = new Set();   // {ws, role}
@@ -54,12 +56,51 @@ function onChat({ platform, user, id, msg }) {
   broadcast({ type: 'chat', platform, user, key, msg }, 'overlay');
   broadcast({ type: 'log', platform, user, msg }, 'admin');
 }
-function fireEvent(name) {
+function fireEvent(name, by = 'admin') {
   if (!EVENTS.includes(name)) return false;
   broadcast({ type: 'event', name }, 'overlay');
-  broadcast({ type: 'log', platform: 'event', user: 'admin', msg: name }, 'admin');
+  broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
 }
+// ---------- twitch eventsub ----------
+// channel point redeems map reward title -> action: "!command" runs as the redeemer (user input appended), else an event name
+function onTwitchEvent(ev) {
+  broadcast({ type: 'log', platform: 'twitch', user: ev.user, msg: describe(ev) }, 'admin');
+  if (ev.kind === 'redeem') {
+    const map = db.get('redeems', {}), action = map[ev.reward.toLowerCase()];
+    if (!action) return;
+    if (action.startsWith('!')) { const msg = (action + ' ' + ev.input).trim(); lastCmd.delete(`twitch:${ev.id.toLowerCase()}`); onChat({ platform: 'twitch', user: ev.user, id: ev.id, msg }); }
+    else fireEvent(action, ev.user);
+    return;
+  }
+  broadcast({ type: 'twitch', ...ev }, 'overlay');
+}
+function describe(ev) {
+  switch (ev.kind) {
+    case 'follow': return 'followed';
+    case 'sub': return `subscribed (tier ${ev.tier / 1000})`;
+    case 'resub': return `resubbed, ${ev.months} months`;
+    case 'gift': return `gifted ${ev.count} subs`;
+    case 'cheer': return `cheered ${ev.bits} bits`;
+    case 'raid': return `raided with ${ev.viewers} viewers`;
+    case 'redeem': return `redeemed "${ev.reward}"${ev.input ? `: ${ev.input}` : ''}`;
+  }
+  return ev.kind;
+}
+const twitch = env('TWITCH_CLIENT_ID') && env('TWITCH_CLIENT_SECRET') && makeTwitchAuth({
+  clientId: env('TWITCH_CLIENT_ID'), clientSecret: env('TWITCH_CLIENT_SECRET'), db,
+  redirectUri: env('TWITCH_REDIRECT_URI', `http://localhost:${PORT}/auth/callback`),
+  idUrl: env('TWITCH_ID_URL', undefined), apiUrl: env('TWITCH_API_URL', undefined),
+});
+let stopEventSub = null;
+function startTwitch() {
+  if (!twitch?.connected) return;
+  stopEventSub?.();
+  status.twitchUser = twitch.user?.login || null;
+  stopEventSub = startEventSub({ wsUrl: env('TWITCH_EVENTSUB_URL', undefined), helix: twitch.helix, userId: twitch.user.id, onEvent: onTwitchEvent,
+    onStatus: ok => { status.eventsub = ok; sendStatus(); } });
+}
+if (twitch) startTwitch(); else console.log('no TWITCH_CLIENT_ID/SECRET in .env — subs/bits/raids/redeems off');
 
 // ---------- http ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
@@ -88,7 +129,32 @@ const server = http.createServer(async (req, res) => {
       onChat({ platform: 'admin', user: user || 'streamer', msg });
       return json(res, 200, { ok: true });
     }
+    if (p === '/api/twitch') {
+      if (!twitch) return json(res, 200, { configured: false });
+      let rewards = [];
+      if (twitch.connected && url.searchParams.get('rewards')) { try { rewards = (await twitch.helix(`/channel_points/custom_rewards?broadcaster_id=${twitch.user.id}`)).data.map(r => r.title); } catch (e) { rewards = [`(couldn't list rewards: ${e.message})`]; } }
+      return json(res, 200, { configured: true, connected: twitch.connected, user: twitch.info, eventsub: status.eventsub, rewards, redeems: db.get('redeems', {}), events: EVENTS });
+    }
+    if (p === '/api/twitch/disconnect' && req.method === 'POST') { stopEventSub?.(); stopEventSub = null; twitch?.disconnect(); status.eventsub = false; status.twitchUser = null; sendStatus(); return json(res, 200, { ok: true }); }
+    if (p === '/api/redeems' && req.method === 'POST') {
+      let map; try { map = JSON.parse(await readBody(req)); } catch { return json(res, 400, { ok: false, error: 'bad json' }); }
+      const clean = {}; for (const [k, v] of Object.entries(map || {})) if (k.trim() && typeof v === 'string' && v.trim()) clean[k.trim().toLowerCase()] = v.trim();
+      db.set('redeems', clean); return json(res, 200, { ok: true, redeems: clean });
+    }
+    if (p === '/api/test') {   // simulate an eventsub event: /api/test?kind=raid&user=bob&viewers=40
+      const ev = Object.fromEntries(url.searchParams); ev.id = ev.id || ev.user || 'tester'; ev.user = ev.user || 'tester';
+      for (const k of ['viewers', 'bits', 'count', 'months', 'tier']) if (ev[k] != null) ev[k] = +ev[k];
+      if (!ev.kind) return json(res, 400, { ok: false, error: 'kind required: follow sub resub gift cheer raid redeem' });
+      onTwitchEvent(ev); return json(res, 200, { ok: true, ev });
+    }
     return json(res, 404, { ok: false });
+  }
+  if (p === '/auth') { if (!twitch) return json(res, 400, { error: 'set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in .env' }); res.writeHead(302, { location: twitch.authUrl('cats') }); return res.end(); }
+  if (p === '/auth/callback') {
+    const code = url.searchParams.get('code');
+    if (!code || !twitch) { res.writeHead(400); return res.end(`twitch auth failed: ${url.searchParams.get('error_description') || 'no code'}`); }
+    try { await twitch.exchange(code); startTwitch(); sendStatus(); res.writeHead(302, { location: '/admin' }); return res.end(); }
+    catch (e) { res.writeHead(500); return res.end('twitch auth failed: ' + e.message); }
   }
   if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(ROOT, 'server', 'admin.html'));
   // static overlay

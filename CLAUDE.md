@@ -15,6 +15,7 @@ Stream overlay: voxel cats controlled by Twitch/Kick chat. Owner streams on Twit
 - Cats keyed `platform:username` (lowercase); `cat.name` is the display name. New cats go through `spawnCat()` (handles the cap). Removal through `removeCat()`.
 - Overlay ↔ server messages are tiny JSON `{type,...}`; the list is in README. New streamer events: add to `events` in cats.js and the `EVENTS` allowlist in server/index.js.
 - Multi-step events with timeouts must check `cat.dead` before touching a cat.
+- Twitch EventSub events arrive at `handleTwitch(m)` in cats.js as `{kind, user, id, ...}`; redeems are resolved server-side (`onTwitchEvent`) into chat commands or events. Test without Twitch via `/api/test?kind=...` or the mock in the session scratchpad pattern: point `TWITCH_ID_URL` / `TWITCH_API_URL` / `TWITCH_EVENTSUB_URL` at a fake.
 - Style: casual code, terse comments, no over-engineering. Owner prefers blunt feedback.
 
 ## Next

@@ -12,6 +12,7 @@
       if(m.type==='init') applyInit(m);
       else if(m.type==='chat') handleChat(m.user, m.msg, m.key);
       else if(m.type==='event' && events[m.name]) events[m.name]();
+      else if(m.type==='twitch') handleTwitch(m);
     };
   }
   net.send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };

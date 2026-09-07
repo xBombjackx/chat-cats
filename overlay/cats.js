@@ -197,7 +197,7 @@ function logLine(user, msg, note){ const d=document.createElement('div'); d.inne
 function findCat(name){ name=name.toLowerCase(); for(const c of cats.values()) if(c.name.toLowerCase()===name) return c; return null; }
 function removeCat(cat){ cat.remove(); cats.delete(cat.key); }
 function spawnCat(key, name, look, quiet){
-  if(cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||c.last<old.last) old=c; if(old){ old.say('bye'); removeCat(old); } }   // LRU evict
+  if(cats.size>=MAX_CATS){ let old=null; for(const c of cats.values()) if(!old||(c.visitor&&!old.visitor)||(c.visitor===old.visitor&&c.last<old.last)) old=c; if(old){ old.say('bye'); removeCat(old); } }   // evict: raid visitors first, then least recently active
   const cat=new Cat(key, name, look); cats.set(key,cat); if(!quiet) cat.say('hi!'); return cat;
 }
 
@@ -285,7 +285,7 @@ const events = {
   clearprops(){ clearProps(); toast('props cleared'); },
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
-  fish(){ for(let i=0;i<14;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
+  fish(n=14){ for(let i=0;i<n;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
     for(const c of cats.values()) setTimeout(()=>{ c.walkTo(rnd(-XMAX,XMAX),rnd(ZMIN,ZMAX),4); c.onArrive=()=>c.jump(); }, rnd(300,2500)); },
   laser(){ if(laser) return; laser=new THREE.Mesh(new THREE.CircleGeometry(0.18,12),new THREE.MeshBasicMaterial({color:0xff2b2b})); laser.rotation.x=-Math.PI/2; laser.position.y=0.02; laser.userData.t0=performance.now(); scene.add(laser);
     const chase=()=>{ if(!laser) return; for(const c of cats.values()){ c.walkTo(laser.position.x+rnd(-0.6,0.6), laser.position.z, 5); c.onArrive=()=>{ if(Math.random()<0.5) c.jump(); }; } };
@@ -293,6 +293,29 @@ const events = {
     setTimeout(()=>{ clearInterval(laser.userData.iv); scene.remove(laser); laser=null; for(const c of cats.values()) c.say('…'); }, 12000); }
 };
 function toast(t){ logLine('event','',t); }
+
+// ---------- twitch reactions (subs, bits, raids, follows) ----------
+const randomLook=()=>({body:pick(Object.keys(COLORS)), eyes:pick(Object.keys(EYES)), pattern:pick(PATTERNS), hat:pick(HATS)});
+function celebrate(){ let i=0; for(const c of cats.values()) setTimeout(()=>{ if(c.dead) return; c.jump(); if(Math.random()<0.35) c.say(pick(['yay!','🎉','MEOW','!!'])); }, i++*90); }
+function handleTwitch(m){
+  const key='twitch:'+String(m.id||m.user).toLowerCase(); let cat=cats.get(key);
+  switch(m.kind){
+    case 'follow': { const c=cat||pick([...cats.values()]); if(c){ c.target=null; c.setState('idle'); c.facing=-Math.PI/2; c.wave(); c.say('hi '+m.user+'!'); } toast(m.user+' followed'); break; }
+    case 'sub': case 'resub': {
+      if(!cat){ cat=spawnCat(key, m.user, {hat:'party'}); } else if(cat.look.hat==='none'){ cat.look.hat='party'; cat.build(); }
+      net.send({type:'cat', key, name:m.user, look:cat.look});
+      cat.jump(); cat.say(m.kind==='resub'?`${m.months} months! 🎉`:'🎉 subbed!');
+      celebrate(); events.fish(8); toast(m.user+(m.kind==='resub'?' resubbed':' subscribed')); break; }
+    case 'gift': { if(cat){ cat.jump(); cat.say(`🎁 x${m.count}`); } celebrate(); events.fish(clamp(4+m.count*2,6,30)); toast(m.user+' gifted '+m.count); break; }
+    case 'cheer': { if(cat){ cat.jump(); cat.say(`💎 ${m.bits}`); } events.fish(clamp(Math.round(m.bits/50),3,30)); if(m.bits>=500) celebrate(); toast(m.user+' cheered '+m.bits); break; }
+    case 'raid': {
+      const real=[...cats.values()].filter(c=>!c.visitor).length, n=Math.min(clamp(Math.round((m.viewers||1)/5),2,8), MAX_CATS-real);   // visitors never push out real chatters
+      for(let i=0;i<n;i++) setTimeout(()=>{ const c=spawnCat('raid:'+performance.now()+':'+i, m.user+"'s crew", randomLook(), true); c.visitor=true; c.say(pick(['RAID!','hi!!','🏴‍☠️'])); zoomies(c,5);
+        setTimeout(()=>{ if(!c.dead){ c.say('bye!'); setTimeout(()=>removeCat(c),900); } }, 90000); }, i*250);   // visitors leave after 90s
+      for(const c of cats.values()) zoomies(c,3);
+      toast(m.user+' raided with '+m.viewers); break; }
+  }
+}
 
 // ---------- UI ----------
 const $=s=>document.querySelector(s);
