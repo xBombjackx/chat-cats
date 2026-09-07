@@ -49,7 +49,7 @@
       <button class="ev" data-ev="feeding">Feeding time</button><button class="ev" data-ev="treat">Treat</button><button class="ev" data-ev="boxes">Box drop</button>
       <button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="confetti">Confetti</button>
     </div>
-    <div class="row"><button data-ev="refill">Refill bowls</button><button data-ev="clearprops">Clear props</button></div>
+    <div class="row"><button data-ev="refill">Refill bowls</button><button data-ev="clearprops">Clear props</button><button id="clearcats">Clear all cats</button></div>
     <div class="hint">Props are placed by clicking the stage on the overlay page (press H there to show the UI).</div>
   </div>
 
@@ -105,6 +105,7 @@
   $('#msg').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#send').click(); });
   document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>send($('#user').value.trim()||'streamer',b.dataset.m));
   document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>ws?.readyState===1 && ws.send(JSON.stringify({type:'event',name:b.dataset.ev})));
+  { const b=$('#clearcats'); let armed=null; b.onclick=()=>{ if(!armed){ b.textContent='really? click again'; armed=setTimeout(()=>{ armed=null; b.textContent='Clear all cats'; },4000); return; } clearTimeout(armed); armed=null; b.textContent='Clear all cats'; ws?.readyState===1 && ws.send(JSON.stringify({type:'event',name:'clearcats'})); }; }
   document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>fetch('/api/test?'+b.dataset.t));
 
   // twitch panel

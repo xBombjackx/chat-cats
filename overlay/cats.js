@@ -265,6 +265,7 @@ class Cat {
       else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.hiding=false; this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
       return; }
     const T=this.T;
+    if(!PLAY && treats.length){ const tr=nearestTreat(this, this.hunger>0.5?18:10); if(tr && Math.random()<(this.hunger>0.5?0.9:0.5)){ this.say(pick(['👀','ooh','treat?'])); claimTreat(this,tr); return; } }   // spotted a treat on the floor
     if(!PLAY && this.hunger>T.hungry && Math.random()<0.6){   // hungry: find food, or stare at the empty bowl and complain
       const bowls=props.filter(p=>p.type==='bowl'), full=bowls.filter(p=>p.amount>0&&p.users<1);
       if(full.length){ this.goTo(pick(full)); return; }
@@ -415,6 +416,7 @@ const events = {
     const [a,b] = list.sort(()=>Math.random()-0.5).slice(0,2); wrestle(a,b,true);
   },
   refill(){ refill(); toast('refilled'); },
+  clearcats(){ for(const c of [...cats.values()]) removeCat(c); race.end(); busy=false; banner(''); toast('all cats cleared'); },
   clearprops(){ clearProps(); toast('props cleared'); },
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
   race(m){ race.start({predictions:!!m?.predictions, joinSecs:m?.joinSecs}); },
@@ -569,7 +571,7 @@ document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>events[b.dataset
 const NAMES=['mochi','biscuit','pixel','noodle','tofu','gizmo','pepper','waffles','bean','miso','clover','ziggy','toast','nova','pudding'];
 $('#rand5').onclick=()=>{ for(let i=0;i<5;i++){ const u=pick(NAMES)+Math.floor(Math.random()*99); handleChat(u, `!cat ${pick(Object.keys(COLORS))} ${pick(PATTERNS)} ${pick(HATS)} eyes ${pick(Object.keys(EYES))}`); } };
 document.querySelectorAll('[data-prop]').forEach(b=>b.onclick=()=>{ placing=b.dataset.prop; document.body.style.cursor='crosshair'; });
-$('#refill').onclick=refill; $('#clearprops').onclick=clearProps;
+$('#refill').onclick=refill; $('#clearprops').onclick=clearProps; $('#clearcats').onclick=()=>{ for(const c of [...cats.values()]) net.send({type:'catgone',key:c.key}); events.clearcats(); };
 $('#bg').onclick=()=>document.body.classList.toggle('demo-bg');
 $('#tags').onclick=()=>labels.classList.toggle('notags');
 const st=document.createElement('style'); st.textContent='.notags .tag{display:none}'; document.head.appendChild(st);
@@ -769,6 +771,13 @@ race.end=function(){ if(this.phase==='idle') return; const hadWinner=!!this.winn
   if(this.butterfly){ scene.remove(this.butterfly); this.butterfly=null; } if(!hadWinner) net.send({type:'race',phase:'cancel'}); banner(''); };
 function spawnButterfly(){ const g=new THREE.Group(); box(g,0.02,0.3,0.4,0xffd166,0,0,-0.2); box(g,0.02,0.3,0.4,0xffd166,0,0,0.2); box(g,0.08,0.08,0.3,0x333333,0,0,0); scene.add(g); return g; }
 
+// treats on the ground: whoever gets there first eats it; losers and idle cats keep an eye out for the rest
+const nearestTreat=(c,r)=>{ let best=null,bd=r; for(const tr of treats){ if(!tr.userData.landed||tr.userData.gone) continue; const d=Math.hypot(tr.position.x-c.g.position.x,tr.position.z-c.g.position.z); if(d<bd){ bd=d; best=tr; } } return best; };
+function eatTreat(c,tr){ if(tr.userData.gone) return false; tr.userData.gone=true; scene.remove(tr); c.giveUp(); c.facing=Math.atan2(-(tr.position.z-c.g.position.z), tr.position.x-c.g.position.x)||c.facing; c.hunger=Math.max(0,c.hunger-0.3); c.play('eat',1.5); c.say(pick(['nom','😋','gotcha','mine'])); return true; }
+function claimTreat(c,tr){ if(c.dead||tr.userData.gone) return; c.giveUp(); c.walkTo(tr.position.x+rnd(-0.3,0.3), tr.position.z+rnd(-0.3,0.3), 4.5);
+  c.onArrive=()=>{ if(!tr.userData.gone){ eatTreat(c,tr); return; } const next=nearestTreat(c,12);   // too slow — is there another one?
+    if(next){ c.say(pick(['that one!','👀','mine then'])); claimTreat(c,next); } else c.say(pick(['aw','😾','too slow'])); }; }
+
 // ---------- loop ----------
 let last=performance.now();
 function frame(now){
@@ -798,10 +807,10 @@ function frame(now){
     for(const c of cats.values()){ const dx=c.g.position.x-vac.mesh.position.x, dz=c.g.position.z-vac.mesh.position.z, d=Math.hypot(dx,dz); if(d<1.7&&d>1e-3&&!c.onProp){ c.g.position.x=clamp(c.g.position.x+dx/d*(1.7-d),-XMAX,XMAX); c.g.position.z=clamp(c.g.position.z+dz/d*(1.7-d),ZMIN,ZMAX); if(c.state!=='walk'){ c.giveUp(); c.walkTo(c.g.position.x+dx/d*3, c.g.position.z+dz/d*3, 6); c.say('!!'); } } } }
   for(const tr of treats){ if(tr.position.y>0.15){ tr.userData.vy-=25*dt; tr.position.y=Math.max(0.15,tr.position.y+tr.userData.vy*dt); tr.rotation.y+=dt*4; if(tr.position.y<=0.15){ tr.userData.landed=t;
       const near4=[...cats.values()].filter(c=>!c.dead).sort((a,b)=>Math.hypot(a.g.position.x-tr.position.x,a.g.position.z-tr.position.z)-Math.hypot(b.g.position.x-tr.position.x,b.g.position.z-tr.position.z)).slice(0,4);
-      for(const c of near4){ c.giveUp(); c.say(pick(['!','treat!','MINE'])); c.walkTo(tr.position.x+rnd(-0.4,0.4), tr.position.z+rnd(-0.4,0.4), 4.5); c.onArrive=()=>{ if(tr.userData.gone){ c.say(pick(['aw','😾','too slow'])); return; } tr.userData.gone=true; scene.remove(tr); c.hunger=Math.max(0,c.hunger-0.3); c.play('eat',1.5); c.say(pick(['nom','😋','gotcha'])); }; } } }
-    else if(t-tr.userData.landed>25 && !tr.userData.gone){ tr.userData.gone=true; scene.remove(tr); } }
-  treats=treats.filter(tr=>!tr.userData.gone);
-  for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
+      for(const c of near4){ c.say(pick(['!','treat!','MINE'])); claimTreat(c,tr); } } }
+    else if(!tr.userData.gone){ if(t-tr.userData.landed>60){ tr.userData.gone=true; scene.remove(tr); }
+      else for(const c of cats.values()) if(!c.dead&&!c.onProp&&!c.anim&&Math.hypot(c.g.position.x-tr.position.x,c.g.position.z-tr.position.z)<1.1){ eatTreat(c,tr); break; } } }   // walked right over one
+  treats=treats.filter(tr=>!tr.userData.gone);  for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
   renderer.render(scene,camera); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

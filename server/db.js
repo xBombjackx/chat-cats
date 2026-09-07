@@ -30,6 +30,7 @@ export function openDb(path) {
     saveCat(key, name, look) { upsertCat.run(key, name, JSON.stringify(look), Date.now()); },
     touchCat(key) { touchCat.run(Date.now(), key); },
     deleteCat(key) { delCat.run(key); },
+    clearCats() { db.exec('DELETE FROM cats'); },
     getCat(key) { const r = getCat.get(key); return r ? { ...r, look: JSON.parse(r.look) } : null; },
     recentCats(maxAgeMs, limit) {
       return recentCats.all(Date.now() - maxAgeMs, limit).map(r => ({ ...r, look: JSON.parse(r.look) }));

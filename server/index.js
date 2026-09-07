@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'refill', 'clearprops'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'refill', 'clearprops', 'clearcats'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -91,6 +91,7 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
 }
 function fireEvent(name, by = 'admin', args = {}) {
   if (!EVENTS.includes(name)) return false;
+  if (name === 'clearcats') db.clearCats();   // stage and memory
   broadcast({ type: 'event', name, ...args, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
   broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
