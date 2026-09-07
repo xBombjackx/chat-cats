@@ -28,6 +28,7 @@
       <label>cat cap <input type="number" id="s-maxCats" min="1" max="200" style="width:64px"></label>
       <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100" style="width:80px"></label>
       <label>respawn h <input type="number" id="s-respawnHours" min="0" step="1" style="width:64px"></label>
+      <label><input type="checkbox" id="s-predictions"> race predictions</label>
       <button id="savesettings">Save</button>
     </div>
     <div class="hint">Companion page for viewers: <code id="playurl"></code> — they see the cats live and click to boop them.</div>
@@ -43,6 +44,7 @@
       <button class="ev" data-ev="fish">Fish rain</button>
       <button class="ev" data-ev="laser">Laser pointer</button>
       <button class="ev" data-ev="nap">Nap time</button>
+      <button class="ev" data-ev="race">Cat race</button>
     </div>
     <div class="row"><button data-ev="refill">Refill bowls</button><button data-ev="clearprops">Clear props</button></div>
     <div class="hint">Props are placed by clicking the stage on the overlay page (press H there to show the UI).</div>
@@ -107,7 +109,7 @@
     $('#tw-events').textContent=(t.events||[]).join(' ');
     if(!t.configured){ body.innerHTML='Set <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> in .env (app at dev.twitch.tv/console, redirect URL <code>'+location.origin+'/auth/callback</code>).'; return; }
     if(!t.connected){ body.textContent='Not connected.'; act.innerHTML='<a href="/auth'+(KEY?'?key='+encodeURIComponent(KEY):'')+'"><button class="ev">Connect Twitch</button></a>'; return; }
-    body.innerHTML=`Connected as <b></b> · EventSub <span class="dot ${t.eventsub?'on':''}"></span>`; body.querySelector('b').textContent=t.user?.name||t.user?.login||'?';
+    body.innerHTML=`Connected as <b></b> · EventSub <span class="dot ${t.eventsub?'on':''}"></span> · race predictions ${t.predictions?'on':t.predictionScope?'off':'<i>reconnect to enable</i>'}`; body.querySelector('b').textContent=t.user?.name||t.user?.login||'?';
     act.innerHTML='<button id="tw-off">Disconnect</button><button id="tw-rw">List rewards</button>';
     $('#tw-off').onclick=async()=>{ await fetch('/api/twitch/disconnect',{method:'POST'}); loadTwitch(); };
     $('#tw-rw').onclick=()=>loadTwitch(true);
@@ -123,9 +125,9 @@
   $('#playurl').textContent=location.origin+'/play';
   if(KEY) for(const c of document.querySelectorAll('.hint code')) if(c.textContent.includes('/api/')) c.textContent+=(c.textContent.includes('?')?'&':'?')+'key=…';
   const SKEYS=['maxCats','cooldownMs','respawnHours'];
-  const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; };
+  const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; $('#s-predictions').checked=!!s.predictions; };
   fetch('/api/settings').then(r=>r.json()).then(showSettings);
-  $('#savesettings').onclick=async()=>{ const body={}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };
+  $('#savesettings').onclick=async()=>{ const body={predictions:$('#s-predictions').checked?1:0}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };
 </script>
 </body>
 </html>

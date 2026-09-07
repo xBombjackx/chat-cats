@@ -1,6 +1,6 @@
 // Twitch OAuth (authorization code flow) + a tiny Helix client. Token lives in SQLite and auto-refreshes.
 // Needs a Twitch app (dev.twitch.tv/console) with redirect URL http://localhost:<PORT>/auth/callback.
-export const SCOPES = ['channel:read:redemptions', 'channel:read:subscriptions', 'bits:read', 'moderator:read:followers'];
+export const SCOPES = ['channel:read:redemptions', 'channel:read:subscriptions', 'bits:read', 'moderator:read:followers', 'channel:manage:predictions'];
 
 export function makeTwitchAuth({ clientId, clientSecret, redirectUri, db, idUrl = 'https://id.twitch.tv/oauth2', apiUrl = 'https://api.twitch.tv/helix' }) {
   let tok = db.get('twitch_token', null);   // {access, refresh, expires, user:{id,login,name}, scopes}

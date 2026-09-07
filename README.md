@@ -50,6 +50,12 @@ Simulate any of these without Twitch from the admin page, or `GET /api/test?kind
 
 `/play` is only useful if viewers can reach the server: run a tunnel (`cloudflared tunnel --url http://localhost:8080`, ngrok, …) and hand out `https://<tunnel>/play`. Before you do, set `ADMIN_KEY` in `.env`. With it set, `/admin`, `/api/*`, `/auth` and the overlay's socket need `?key=<ADMIN_KEY>` (the OBS browser source URL too, and Stream Deck URLs); the companion page stays public. Overlay files themselves are always public — they contain nothing secret.
 
+## Cat race
+
+Fire the `race` event (streamer panel, admin page, Stream Deck `/api/event/race`, or a channel point reward mapped to `race`). Chat types `!join` for 20 seconds; if fewer than two join, random cats fill the field. Cats line up on the left, 3-2-1, then run right with speed bursts, grooming stops and a butterfly to chase. First across wins and wears a crown until the next race.
+
+If Twitch is connected with the predictions scope, each race opens a 30-second Twitch Prediction with the racers as outcomes while the cats wait at the line, and resolves it on the winner. Toggle on the admin page. Tokens from before this feature need one more **Connect Twitch** to pick up the scope.
+
 ## Stream Deck / hotkeys
 
 Any HTTP GET or POST works:
@@ -65,6 +71,7 @@ http://localhost:8080/api/settings                       GET, or POST {"maxCats"
 
 - `!cat [color] [pattern] [hat] [size] eyes <color>` — spawn or restyle; sizes `kitten skinny adult fat`
 - `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !stalk !lick !leave`
+- `!join` — enter the cat race while the window is open
 - `!pet @name` — walk over and nuzzle · `!tackle @name` — pick a fight · `!stalk [@name]` — creep up and pounce
 
 Props: food bowl, water, scratch post, ball, cardboard box (cats climb in, peek out, and sometimes lie in wait to swipe at whoever walks past — which can start a fight), perch (cats hop up and lounge). Each cat also has a fixed sleeping style: loaf, on its side, or belly-up.

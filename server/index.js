@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'refill', 'clearprops'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'refill', 'clearprops'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -27,7 +27,7 @@ let oauthState = null;
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
 const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
 // settings: .env gives defaults, /admin can change them live (stored in sqlite)
-const DEFAULTS = { cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
+const DEFAULTS = { predictions: +env('PREDICTIONS', 1), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 function setSettings(patch) {
   for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
@@ -77,9 +77,32 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
 }
 function fireEvent(name, by = 'admin') {
   if (!EVENTS.includes(name)) return false;
-  broadcast({ type: 'event', name }, 'overlay');
+  broadcast({ type: 'event', name, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
   broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
+}
+// ---------- twitch predictions (cat race) ----------
+const canPredict = () => !!(twitch?.connected && cfg.predictions && (twitch.info?.scopes || []).includes('channel:manage:predictions'));
+let prediction = null;   // {id, outcomes:{name -> outcome id}}
+async function onRace(m) {
+  broadcast({ type: 'log', platform: 'race', user: 'overlay', msg: m.phase + (m.name ? ': ' + m.name : '') }, 'admin');
+  if (!canPredict()) return;
+  try {
+    if (m.phase === 'roster' && Array.isArray(m.racers) && m.racers.length >= 2) {
+      const outcomes = m.racers.slice(0, 10).map(r => ({ title: String(r.name).slice(0, 25) }));
+      const j = await twitch.helix('/predictions', { method: 'POST', body: JSON.stringify({ broadcaster_id: twitch.user.id, title: 'Cat race 🏁 who wins?', outcomes, prediction_window: 30 }) });
+      const p = j.data?.[0]; if (!p) return;
+      prediction = { id: p.id, outcomes: Object.fromEntries(p.outcomes.map(o => [o.title, o.id])) };
+      console.log('[race] prediction opened', p.id);
+    } else if (m.phase === 'winner' && prediction) {
+      const win = prediction.outcomes[String(m.name).slice(0, 25)];
+      await twitch.helix('/predictions', { method: 'PATCH', body: JSON.stringify({ broadcaster_id: twitch.user.id, id: prediction.id, status: win ? 'RESOLVED' : 'CANCELED', winning_outcome_id: win }) });
+      console.log('[race] prediction', win ? 'resolved' : 'canceled'); prediction = null;
+    } else if (m.phase === 'cancel' && prediction) {
+      await twitch.helix('/predictions', { method: 'PATCH', body: JSON.stringify({ broadcaster_id: twitch.user.id, id: prediction.id, status: 'CANCELED' }) });
+      prediction = null;
+    }
+  } catch (e) { console.error('[race] prediction failed:', e.message); prediction = null; }
 }
 // ---------- twitch eventsub ----------
 // channel point redeems map reward title -> action: "!command" runs as the redeemer (user input appended), else an event name
@@ -160,7 +183,7 @@ const server = http.createServer(async (req, res) => {
       if (!twitch) return json(res, 200, { configured: false });
       let rewards = [];
       if (twitch.connected && url.searchParams.get('rewards')) { try { rewards = (await twitch.helix(`/channel_points/custom_rewards?broadcaster_id=${twitch.user.id}`)).data.map(r => r.title); } catch (e) { rewards = [`(couldn't list rewards: ${e.message})`]; } }
-      return json(res, 200, { configured: true, connected: twitch.connected, user: twitch.info, eventsub: status.eventsub, rewards, redeems: db.get('redeems', {}), events: EVENTS });
+      return json(res, 200, { configured: true, connected: twitch.connected, user: twitch.info, eventsub: status.eventsub, rewards, redeems: db.get('redeems', {}), events: EVENTS, predictions: canPredict(), predictionScope: (twitch.info?.scopes || []).includes('channel:manage:predictions') });
     }
     if (p === '/api/twitch/disconnect' && req.method === 'POST') { stopEventSub?.(); stopEventSub = null; twitch?.disconnect(); status.eventsub = false; status.twitchUser = null; sendStatus(); return json(res, 200, { ok: true }); }
     if (p === '/api/redeems' && req.method === 'POST') {
@@ -197,7 +220,7 @@ const wss = new WebSocketServer({ server });
 let primary = null;   // the overlay whose cat positions get mirrored to the companion page
 function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
 // what each role may send; nothing before a successful hello
-const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones'], admin: ['chat', 'event'], play: ['poke'] };
+const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race'], admin: ['chat', 'event'], play: ['poke'] };
 const isStr = v => typeof v === 'string' && v.length > 0 && v.length < 200;
 wss.on('connection', ws => {
   const c = { ws, role: null };   // role is set only once hello is accepted
@@ -230,6 +253,8 @@ wss.on('connection', ws => {
         case 'zones': if (Array.isArray(m.zones)) db.set('zones', m.zones.slice(0, 20)); break;
         case 'chat': onChat({ platform: 'admin', user: isStr(m.user) ? m.user : 'streamer', msg: m.msg }); break;   // from admin page
         case 'event': if (isStr(m.name)) fireEvent(m.name); break;
+        case 'banner': if (c === primary) broadcast({ type: 'banner', text: String(m.text ?? '').slice(0, 80), ms: +m.ms || 0 }, 'play'); break;
+        case 'race': if (c === primary) onRace(m); break;
       }
     } catch (e) { console.error('[ws]', c.role, m.type, e.message); }
   });

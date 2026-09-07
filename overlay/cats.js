@@ -80,12 +80,12 @@ class Cat {
     this.tail = new THREE.Group(); this.tail.position.set(-0.55,0.85,0); box(this.tail,0.22,0.7,0.22,c,-0.05,0.3,0); box(this.tail,0.24,0.24,0.24,L.pattern==='tabby'?dark:c,-0.05,0.72,0);
     this.tail.rotation.z = 0.6; b.add(this.tail);
     // hat
-    const h=new THREE.Group(); h.position.set(0,0.6,0); hd.add(h);
-    if(L.hat==='crown'){ box(h,0.8,0.2,0.8,0xffd23f,0,0.1,0); for(const [x,z] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]) box(h,0.18,0.3,0.18,0xffd23f,x,0.3,z); box(h,0.16,0.16,0.16,0xff4d6d,0.42,0.2,0); }
-    if(L.hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
-    if(L.hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
-    if(L.hat==='bow'){ box(h,0.3,0.28,0.3,0xff4d6d,0.1,0.1,0.5); box(h,0.28,0.4,0.28,0xff4d6d,-0.14,0.12,0.5); box(h,0.28,0.4,0.28,0xff4d6d,0.34,0.12,0.5); }
-    if(L.hat==='halo'){ const r=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.07,8,24),new THREE.MeshLambertMaterial({color:0xffe28a,emissive:0x8a6a00})); r.rotation.x=Math.PI/2; r.position.y=0.55; h.add(r); }
+    const h=new THREE.Group(); h.position.set(0,0.6,0); hd.add(h); const hat=this.raceCrown?'crown':L.hat;
+    if(hat==='crown'){ box(h,0.8,0.2,0.8,0xffd23f,0,0.1,0); for(const [x,z] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]) box(h,0.18,0.3,0.18,0xffd23f,x,0.3,z); box(h,0.16,0.16,0.16,0xff4d6d,0.42,0.2,0); }
+    if(hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
+    if(hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
+    if(hat==='bow'){ box(h,0.3,0.28,0.3,0xff4d6d,0.1,0.1,0.5); box(h,0.28,0.4,0.28,0xff4d6d,-0.14,0.12,0.5); box(h,0.28,0.4,0.28,0xff4d6d,0.34,0.12,0.5); }
+    if(hat==='halo'){ const r=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.07,8,24),new THREE.MeshLambertMaterial({color:0xffe28a,emissive:0x8a6a00})); r.rotation.x=Math.PI/2; r.position.y=0.55; h.add(r); }
     // shadow blob
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.85,20), new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.22}));
     this.shadow.rotation.x=-Math.PI/2; this.shadow.position.y=0.01; g.add(this.shadow);
@@ -136,7 +136,7 @@ class Cat {
       if(d<0.15){ this.target=null; this.setState('idle'); this.timer=rnd(1.5,4); if(this.onArrive){const f=this.onArrive;this.onArrive=null;f();} }
       else if(this.stuckT>1.5) this.giveUp();
       else { let vx=dx/d, vz=dz/d;   // steer around other cats and props
-        for(const o of cats.values()){ if(o===this||o.noCollide) continue; const ox=g.position.x-o.g.position.x, oz=g.position.z-o.g.position.z, od=Math.hypot(ox,oz); if(od<2.2&&od>1e-3){ const w=(1-od/2.2)*1.7; vx+=ox/od*w; vz+=oz/od*w; } }
+        if(!this.racing) for(const o of cats.values()){ if(o===this||o.noCollide) continue; const ox=g.position.x-o.g.position.x, oz=g.position.z-o.g.position.z, od=Math.hypot(ox,oz); if(od<2.2&&od>1e-3){ const w=(1-od/2.2)*1.7; vx+=ox/od*w; vz+=oz/od*w; } }
         for(const p of props){ if(p===this.prop||p.type==='toy') continue; const ox=g.position.x-p.x, oz=g.position.z-p.z, od=Math.hypot(ox,oz), rr=p.r+1.0; if(od<rr&&od>1e-3){ const w=(1-od/rr)*2.4; vx+=ox/od*w; vz+=oz/od*w; } }
         for(const q of zoneQuads){ const {d,e}=zoneDepth(q,g.position.x,g.position.z); if(d<ZONE_PAD+0.8){ const into=vx*e.nx+vz*e.nz; if(into<0){ vx-=into*e.nx; vz-=into*e.nz; }   // slide along the zone edge
           if(d<ZONE_PAD){ const w=(ZONE_PAD-d)*2; vx+=e.nx*w; vz+=e.nz*w; } } }
@@ -293,6 +293,7 @@ function handleChat(user, msg, key){
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
     net.send({type:'cat', key, name:user, look:cat.look});
   } else if(!cat){ note='no cat yet — use !cat'; }
+  else if(cmd==='join') note=race.join(cat);
   else if(cmd==='lick') cat.play(pick(['lickfoot','lickbutt']),1.9);
   else if(cmd==='meow') cat.say(pick(['meow','mrrp','meow~','MEOW','mrow?','prrr']));
   else if(cmd==='jump') cat.jump();
@@ -359,6 +360,7 @@ const events = {
   refill(){ refill(); toast('refilled'); },
   clearprops(){ clearProps(); toast('props cleared'); },
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
+  race(m){ race.start({predictions:!!m?.predictions, joinSecs:m?.joinSecs}); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
   fish(n=14){ for(let i=0;i<n;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
     if(!PLAY) for(const c of cats.values()) setTimeout(()=>{ if(!c.dead){ c.walkTo(rnd(-XMAX,XMAX),rnd(ZMIN,ZMAX),4); c.onArrive=()=>c.jump(); } }, rnd(300,2500)); },
@@ -567,6 +569,47 @@ if(q.get('demo')==='1'){   // standalone demo, no server
   handleChat('cream_puff','!cat cream calico bow eyes blue');
 }
 
+// ---------- minigames ----------
+const bannerEl=document.getElementById('banner');
+function banner(text, ms){ bannerEl.textContent=text||''; bannerEl.classList.toggle('show',!!text); clearTimeout(banner.t); if(text&&ms) banner.t=setTimeout(()=>banner(''),ms); if(!PLAY) net.send({type:'banner',text:text||'',ms:ms||0}); }
+// cat race: !join during the window, line up, (optional twitch prediction window), 3-2-1, run right with bursts and distractions. Winner wears a crown until the next race.
+const race={ phase:'idle', racers:[], finished:[], t:0, opts:{}, winner:null, champion:null, butterfly:null };
+race.lane=function(i,n){ return ZMIN+0.8+(ZMAX-ZMIN-1.6)*(n<2?0.5:i/(n-1)); };
+race.join=function(cat){ if(this.phase!=='join') return 'no race open'; if(this.racers.includes(cat)) return 'already in'; if(this.racers.length>=8) return 'race is full';
+  this.racers.push(cat); cat.say('🏁'); this.lineup(); return 'joined the race'; };
+race.lineup=function(){ const n=this.racers.length; this.racers.forEach((c,i)=>{ c.racing=true; c.noCollide=true; c.walkTo(-XMAX+1.5, this.lane(i,n), 3.5); c.onArrive=()=>{ c.facing=0; c.timer=99; }; }); };
+race.start=function(opts={}){ if(this.phase!=='idle'||PLAY) return; this.opts=opts; this.phase='join'; this.racers=[]; this.finished=[]; this.winner=null;
+  banner('🏁 CAT RACE — type !join'); toast('race: join window open'); for(const c of cats.values()) if(Math.random()<0.5) c.say(pick(['!join','🏁','race?']));
+  setTimeout(()=>{ if(this.phase!=='join') return;
+    if(this.racers.length<2){ const extra=[...cats.values()].filter(c=>!c.dead&&!this.racers.includes(c)).sort(()=>Math.random()-0.5).slice(0,4-this.racers.length); for(const c of extra){ this.racers.push(c); c.say('🏁'); } this.lineup(); }   // fill the field
+    if(this.racers.length<2){ banner('not enough cats 😿',2500); this.phase='idle'; return; }
+    this.phase='lineup'; net.send({type:'race',phase:'roster',racers:this.racers.map(c=>({key:c.key,name:c.name}))});
+    banner(opts.predictions?'place your bets! 🏁':'get ready…'); setTimeout(()=>this.countdown(), opts.predictions?32000:4000);
+  }, (opts.joinSecs||20)*1000); };
+race.countdown=function(){ let n=3; const tick=()=>{ if(this.phase!=='lineup') return; if(n>0){ banner(String(n)); for(const c of this.racers) if(!c.dead) c.say(String(n)); n--; setTimeout(tick,900); } else { banner('GO!',1500); this.go(); } }; tick(); };
+race.go=function(){ this.phase='running'; this.t=0; this.finishX=XMAX-1.2;
+  this.racers.forEach((c,i)=>{ c.raceBase=rnd(2.6,3.6)*(c.look.size==='fat'?0.85:c.look.size==='kitten'?1.05:1); c.raceZ=this.lane(i,this.racers.length); c.nextDistract=rnd(1.5,4); this.run(c); });
+  this.butterfly=spawnButterfly(); };
+race.run=function(c){ if(c.dead) return; c.racing=true; c.walkTo(this.finishX+0.6, c.raceZ, c.raceBase); c.onArrive=()=>this.finish(c); };
+race.update=function(dt,now){ if(this.phase!=='running') return; this.t+=dt;
+  for(const c of this.racers){ if(c.dead||this.finished.includes(c)) continue;
+    if(c.state==='walk'){ c.speed=Math.max(0.8, c.raceBase*(0.75+0.5*Math.sin(now*3.1+c.ph*7)+0.35*Math.sin(now*7.3+c.ph*3)));   // bursts
+      if(c.g.position.x>=this.finishX){ this.finish(c); continue; } }
+    c.nextDistract-=dt;
+    if(c.nextDistract<=0 && c.state==='walk'){ c.nextDistract=rnd(2.5,6); const r=Math.random();
+      if(r<0.5){ const a=pick(['twitch','lickfoot','shake','stretch']), d=a==='stretch'?1.2:0.8; c.play(a,d); c.say(pick(['?','…','hm','itchy'])); setTimeout(()=>{ if(this.phase==='running'&&!this.finished.includes(c)) this.run(c); }, d*1000+100); }
+      else if(this.butterfly){ c.say('🦋'); c.walkTo(c.g.position.x+1.5, clamp(this.butterfly.position.z,ZMIN+0.5,ZMAX-0.5), 2.5); c.onArrive=()=>this.run(c); } } }
+  if(this.butterfly){ const b=this.butterfly; b.position.x=-XMAX+((this.t*3)%(2*XMAX)); b.position.z=(ZMIN+ZMAX)/2+Math.sin(this.t*1.3)*(ZMAX-ZMIN)*0.4; b.position.y=1.4+Math.sin(this.t*9)*0.3; b.children[0].rotation.x=Math.sin(this.t*40)*0.9; b.children[1].rotation.x=-b.children[0].rotation.x; }
+  if(this.t>45) this.end(); };
+race.finish=function(c){ if(this.finished.includes(c)) return; this.finished.push(c); c.racing=false; c.target=null; c.onArrive=null; c.setState('idle'); c.timer=3; c.facing=-Math.PI/2;
+  if(this.finished.length===1){ this.winner=c; banner('🏆 '+c.name+' wins!',6000); if(this.champion&&this.champion!==c&&!this.champion.dead){ this.champion.raceCrown=false; this.champion.build(); } this.champion=c; c.raceCrown=true; c.build();
+    c.jump(); setTimeout(()=>{ if(!c.dead) c.jump(); },500); c.say('🏆'); net.send({type:'race',phase:'winner',key:c.key,name:c.name}); toast('race: '+c.name+' wins'); setTimeout(()=>this.end(),6000); }
+  else c.say(pick(['aw','so close','😾','next time'])); };
+race.end=function(){ if(this.phase==='idle') return; const hadWinner=!!this.winner; this.phase='idle';
+  for(const c of this.racers){ c.racing=false; c.noCollide=false; if(!c.dead&&c.state==='walk'){ c.target=null; c.onArrive=null; c.setState('idle'); c.timer=rnd(1,3); } }
+  if(this.butterfly){ scene.remove(this.butterfly); this.butterfly=null; } if(!hadWinner) net.send({type:'race',phase:'cancel'}); banner(''); };
+function spawnButterfly(){ const g=new THREE.Group(); box(g,0.02,0.3,0.4,0xffd166,0,0,-0.2); box(g,0.02,0.3,0.4,0xffd166,0,0,0.2); box(g,0.08,0.08,0.3,0x333333,0,0,0); scene.add(g); return g; }
+
 // ---------- loop ----------
 let last=performance.now();
 function frame(now){
@@ -587,6 +630,7 @@ function frame(now){
   }
   if(!PLAY && zoneQuads.length) for(const c of cats.values()){ if(c.onProp) continue; const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
+  race.update(dt,t);
   if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
   for(const f of fishes){ f.userData.vy-=25*dt; f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(f.position.y<0.6){ scene.remove(f); } }
   fishes=fishes.filter(f=>f.position.y>=0.6);
