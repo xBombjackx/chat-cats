@@ -56,6 +56,10 @@ Fire the `race` event (streamer panel, admin page, Stream Deck `/api/event/race`
 
 If Twitch is connected with the predictions scope, each race opens a 30-second Twitch Prediction with the racers as outcomes while the cats wait at the line, and resolves it on the winner. Toggle on the admin page. Tokens from before this feature need one more **Connect Twitch** to pick up the scope.
 
+## Leaderboards and cat of the day
+
+Cozy, not competitive: most naps, most pets given, most zoomies, race wins, most booped on the companion page. `GET /api/leaderboard?n=5` or the admin page. One cat seen in the last week is picked as cat of the day (fixed per calendar day); its name tag glows gold.
+
 ## Stream Deck / hotkeys
 
 Any HTTP GET or POST works:

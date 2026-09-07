@@ -44,9 +44,17 @@ function broadcast(obj, role) {
 }
 function sendStatus() { broadcast({ type: 'status', ...status }, 'admin'); }
 
+const STATS = ['naps', 'pets', 'zoomies', 'wins', 'boops'];
+function catOfTheDay() {   // one random cat seen in the last week, fixed for the calendar day
+  const today = new Date().toISOString().slice(0, 10);
+  let c = db.get('cotd', null);
+  if (!c || c.date !== today) { const pick = db.randomCat(7 * 86400e3); c = pick ? { date: today, key: pick.key, name: pick.name } : null; if (c) db.set('cotd', c); }
+  return c;
+}
 function initPayload() {
   return {
     type: 'init',
+    cotd: catOfTheDay(),
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),
@@ -166,6 +174,7 @@ const server = http.createServer(async (req, res) => {
   // API — GET is allowed too so Stream Deck's "Website" action can fire events
   if (p.startsWith('/api/')) {
     if (p === '/api/status') return json(res, 200, status);
+    if (p === '/api/leaderboard') { const out = { cotd: catOfTheDay() }; for (const s of STATS) out[s] = db.top(s, +url.searchParams.get('n') || 5); return json(res, 200, out); }
     if (p === '/api/settings') {
       if (req.method === 'POST') { try { setSettings(JSON.parse(await readBody(req) || '{}')); } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }
       return json(res, 200, { ...cfg, defaults: DEFAULTS });
@@ -221,7 +230,7 @@ const wss = new WebSocketServer({ server });
 let primary = null;   // the overlay whose cat positions get mirrored to the companion page
 function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
 // what each role may send; nothing before a successful hello
-const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race'], admin: ['chat', 'event'], play: ['poke'] };
+const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race', 'stat'], admin: ['chat', 'event'], play: ['poke'] };
 const isStr = v => typeof v === 'string' && v.length > 0 && v.length < 200;
 wss.on('connection', ws => {
   const c = { ws, role: null };   // role is set only once hello is accepted
@@ -256,6 +265,7 @@ wss.on('connection', ws => {
         case 'event': if (isStr(m.name)) fireEvent(m.name); break;
         case 'banner': if (c === primary) broadcast({ type: 'banner', text: String(m.text ?? '').slice(0, 80), ms: +m.ms || 0 }, 'play'); break;
         case 'race': if (c === primary) onRace(m); break;
+        case 'stat': if (c === primary && isStr(m.key) && STATS.includes(m.name)) db.bump(m.key, m.name); break;
       }
     } catch (e) { console.error('[ws]', c.role, m.type, e.message); }
   });

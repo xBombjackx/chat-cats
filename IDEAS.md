@@ -4,20 +4,20 @@ Owner's list, grouped roughly cheapest to hardest within each bucket, with triag
 Not commitments. Cross things off or reorder freely.
 
 ## Your cat
-- Naming your cat separately from your username, `!name Biscuit` — *cheap, display name field*
+- ~~Naming your cat separately from your username, `!name Biscuit`~~ — *done*
 - Accessories beyond hats: collars with tags, scarves, glasses, wings, tiny backpacks — *modeling time per item; collars/glasses quick*
-- Moods that show: unfed cat goes grumpy, well-fed cat purrs with hearts — *medium; bowls already deplete, needs a hunger clock + visible signal*
+- ~~Moods that show: hunger~~ — *done via bubbles (complaints at empty bowls, hearts when fed); a visible model change is still open*
 - Cat "levels" from time in chat, unlocking cosmetics (loyalty, not skill) — *medium-cheap; needs active-minutes counter server-side*
-- Personality traits picked at spawn: lazy / zoomy / clingy / grumpy, weighting the idle AI — *cheap; same hash trick as affinity*
+- ~~Personality traits picked at spawn~~ — *done: chill/lazy/zoomy/clingy/grumpy*
 - Kittens: long-time regulars can have their cat "adopt" a kitten that follows them — *structural: breaks one-cat-per-chatter (cap, eviction, persistence)*
-- `!afk` puts your cat in a cat bed until you type again — *cheap; bed prop + parked state*
-- Your cat greets you when you come back after days away — *cheap; last-seen is stored*
+- ~~`!afk`~~ — *done (box or back corner)*
+- ~~Your cat greets you when you come back after days away~~ — *done*
 
 ## Interaction between chatters
 - `!pet`, `!boop`, `!hug`, `!fight @name` — *have pet/boop/hug and !tackle*
 - `!gift @name fish` — item economy with fish as currency — *push back: inventory + anti-abuse, and it turns cozy into grind. If ever: cosmetic only, never scarce*
 - Cat "friendships": cats petted together start sitting together — *affinity is a static hash today; learned delta per pair in sqlite is a small change*
-- `!follow @name` — *cheap; friend-follow logic exists*
+- ~~`!follow @name`~~ — *done*
 - Group naps: one sleeping cat attracts others into a pile — *cheap*
 - `!photo` — cats pose, screenshot to chat/Discord — *medium; canvas.toDataURL + Discord webhook*
 
@@ -39,18 +39,18 @@ Not commitments. Cross things off or reorder freely.
 - Day/night cycle tied to real time, sleepier at night — *cheap*
 - Seasonal decor: pumpkins, a tree cats climb and knock ornaments off
 - Roomba that cats ride
-- Cucumber event — *cheap; arch + jump exist*
-- Vacuum event: everyone scatters — *cheap*
-- Doorbell: all cats run offscreen and creep back — *cheap; stalk anim exists*
-- Feeding time announcement pulls every cat to the bowls — *cheap*
-- Treat cannon aimed with a Stream Deck — *cheap; poke logic exists*
-- Sub/raid/bits hooks: raid drops a crate of boxes, subs get party hat + confetti — *cheap*
+- ~~Cucumber event~~ — *done*
+- ~~Vacuum event~~ — *done*
+- ~~Doorbell~~ — *done*
+- ~~Feeding time~~ — *done*
+- ~~Treat cannon~~ — *done: `/api/event/treat?x=&z=`*
+- ~~Sub/raid/bits hooks: raid box crate, sub confetti~~ — *done*
 
 ## Persistence and meta
-- Cozy leaderboards: most naps, most pets given, longest zoomies — *cheap counters*
-- Cat of the day: spotlight + name tag glow — *cheap*
+- ~~Cozy leaderboards~~ — *done: naps, pets, zoomies, race wins, boops*
+- ~~Cat of the day~~ — *done*
 - Cat census page on the companion site
 - Cats resume what they were doing next stream — *positions are cheap to persist; states not worth it*
 
 ## Suggested order
-1. Race + scaffold (done) · 2. personality traits + moods · 3. streamer event pack · 4. cheap per-cat commands (`!name`, `!afk`, `!follow`, welcome back) · 5. leaderboards / cat of the day · economy last or never.
+Batch one (race, traits, hunger, event pack, per-cat commands, leaderboards, cat of the day) is done. Next candidates: group naps, day/night cycle, musical beds / red light green light on the race scaffold, accessories, `!photo`, cat census on /play. Economy last or never.

@@ -12,6 +12,7 @@ export function openDb(path) {
       last INTEGER NOT NULL          -- ms epoch of last activity
     );
     CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS stats (key TEXT NOT NULL, stat TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(key, stat));
   `);
   const upsertCat = db.prepare(`INSERT INTO cats(key,name,look,last) VALUES(?,?,?,?)
     ON CONFLICT(key) DO UPDATE SET name=excluded.name, look=excluded.look, last=excluded.last`);
@@ -20,6 +21,9 @@ export function openDb(path) {
   const getCat = db.prepare(`SELECT key,name,look,last FROM cats WHERE key=?`);
   const recentCats = db.prepare(`SELECT key,name,look,last FROM cats WHERE last>? ORDER BY last DESC LIMIT ?`);
   const getKv = db.prepare(`SELECT v FROM kv WHERE k=?`);
+  const bump = db.prepare(`INSERT INTO stats(key,stat,n) VALUES(?,?,1) ON CONFLICT(key,stat) DO UPDATE SET n=n+1`);
+  const top = db.prepare(`SELECT s.key, c.name, s.n FROM stats s LEFT JOIN cats c ON c.key=s.key WHERE s.stat=? ORDER BY s.n DESC LIMIT ?`);
+  const anyCats = db.prepare(`SELECT key,name FROM cats WHERE last>? ORDER BY RANDOM() LIMIT 1`);
   const setKv = db.prepare(`INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v`);
 
   return {
@@ -32,5 +36,8 @@ export function openDb(path) {
     },
     get(k, fallback) { const r = getKv.get(k); return r ? JSON.parse(r.v) : fallback; },
     set(k, v) { setKv.run(k, JSON.stringify(v)); },
+    bump(key, stat) { bump.run(key, stat); },
+    top(stat, limit = 5) { return top.all(stat, limit).map(r => ({ key: r.key, name: r.name || r.key.split(':')[1], n: r.n })); },
+    randomCat(maxAgeMs) { return anyCats.get(Date.now() - maxAgeMs) || null; },
   };
 }

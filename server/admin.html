@@ -69,6 +69,8 @@
   </div>
 
   <div class="panel">
+    <h2>Leaderboard <button id="lb-refresh" style="font-size:12px;padding:2px 8px">refresh</button></h2>
+    <div id="lb" class="hint" style="margin-bottom:10px">loading…</div>
     <h2>Chat as someone</h2>
     <div class="row">
       <input class="user" type="text" id="user" value="streamer" aria-label="username" style="width:100px">
@@ -123,6 +125,12 @@
     $('#redeems').value=Object.entries(r.redeems||{}).map(([k,v])=>`${k} => ${v}`).join('\n'); };
   loadTwitch();
 
+  // leaderboard + cat of the day
+  async function loadLb(){ const l=await fetch('/api/leaderboard?n=3').then(r=>r.json()); const el=$('#lb'); el.innerHTML='';
+    const row=(label,list)=>{ const d=document.createElement('div'); d.innerHTML='<b></b> '; d.querySelector('b').textContent=label+':'; d.append(list.length?list.map(x=>`${x.name} (${x.n})`).join(' · '):'—'); el.appendChild(d); };
+    const c=document.createElement('div'); c.innerHTML='✨ cat of the day: <b></b>'; c.querySelector('b').textContent=l.cotd?.name||'(no cats seen this week)'; el.appendChild(c);
+    row('most naps',l.naps); row('most pets given',l.pets); row('most zoomies',l.zoomies); row('race wins',l.wins); row('most booped',l.boops); }
+  $('#lb-refresh').onclick=loadLb; loadLb();
   // settings
   $('#playurl').textContent=location.origin+'/play';
   if(KEY) for(const c of document.querySelectorAll('.hint code')) if(c.textContent.includes('/api/')) c.textContent+=(c.textContent.includes('?')?'&':'?')+'key=…';

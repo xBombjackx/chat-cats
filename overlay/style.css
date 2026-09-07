@@ -7,6 +7,8 @@
   body.demo-bg{background:radial-gradient(1200px 600px at 50% 110%,#5b4a6b 0%,#2e2740 60%,#1d1a2a 100%)}
   #c{position:fixed;inset:0;display:block}
   #labels{position:fixed;inset:0;pointer-events:none}
+  .tag.cotd{color:#ffe28a;text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 10px rgba(255,210,80,.9),0 0 22px rgba(255,190,50,.6);animation:glow 2s ease-in-out infinite alternate}
+  @keyframes glow{from{text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 8px rgba(255,210,80,.7)}to{text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 16px rgba(255,210,80,1),0 0 30px rgba(255,190,50,.8)}}
   .tag{position:absolute;transform:translate(-50%,-100%);font-size:13px;font-weight:800;color:#fff;
        text-shadow:0 1px 0 rgba(0,0,0,.6),0 0 6px rgba(0,0,0,.5);white-space:nowrap;letter-spacing:.2px}
   .bubble{position:absolute;transform:translate(-50%,-100%);background:var(--paper);color:var(--ink);
