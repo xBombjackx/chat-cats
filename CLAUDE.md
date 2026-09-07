@@ -10,7 +10,8 @@ Stream overlay: voxel cats controlled by Twitch/Kick chat. Owner streams on Twit
 - All one-shot animations go through `Cat.play(name, dur)` — one `case` in the switch in `update()`, plus a command line in `handleChat`. Reset any transform you touch in the `p>=1` block.
 - Cat scale lives in `build()`: `b.scale.setScalar(0.72)`. Body parts are children of `this.body`, not `this.g`.
 - Props: `spawnProp(type,x,z)`; cats reserve a prop via `goTo(p)` and must `releaseProp()` on any interruption (already wired into `walkTo` / `play`). Call `saveProps()` after layout changes.
-- Bounds: `XMAX`, `ZMIN` (far), `ZMAX` (near). Everything positional clamps to these.
+- Bounds: `XMAX`, `ZMIN` (far), `ZMAX` (near). Everything positional goes through `freePoint(x,z)`, which clamps to these and pushes out of no-go zones. `walkTo` already does it.
+- No-go zones are screen rects → floor-space convex polygons (`zoneQuads`), rebuilt on resize/camera change. Anything that raycasts from the camera before the first render must call `camera.updateMatrixWorld()` first.
 - Cats keyed `platform:username` (lowercase); `cat.name` is the display name. New cats go through `spawnCat()` (handles the cap). Removal through `removeCat()`.
 - Overlay ↔ server messages are tiny JSON `{type,...}`; the list is in README. New streamer events: add to `events` in cats.js and the `EVENTS` allowlist in server/index.js.
 - Multi-step events with timeouts must check `cat.dead` before touching a cat.

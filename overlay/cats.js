@@ -32,7 +32,7 @@ class Cat {
     this.key = key; this.name = name; this.last = performance.now();
     this.look = Object.assign({body:'orange', eyes:'green', pattern:'solid', hat:'none'}, look);
     this.g = new THREE.Group();
-    this.g.position.set(rnd(-XMAX,XMAX), 0, rnd(ZMIN,ZMAX));
+    const sp=freePoint(rnd(-XMAX,XMAX), rnd(ZMIN,ZMAX)); this.g.position.set(sp.x, 0, sp.z);
     scene.add(this.g);
     this.facing = Math.random()<0.5?0:Math.PI;
     this.build();
@@ -81,7 +81,8 @@ class Cat {
   }
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
-  walkTo(x,z,speed,keep){ if(!keep) this.releaseProp(); this.target={x:clamp(x,-XMAX,XMAX), z:clamp(z,ZMIN,ZMAX)}; this.speed=speed||2.2; this.setState('walk'); }
+  walkTo(x,z,speed,keep){ if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
+  giveUp(){ this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
   setState(s){ this.state=s; this.t=0; }
   // one-shot actions
   jump(){ if(this.jumpT<0) this.jumpT=0; }
@@ -104,10 +105,14 @@ class Cat {
 
     if(s==='walk' && this.target){
       const dx=this.target.x-g.position.x, dz=this.target.z-g.position.z, d=Math.hypot(dx,dz);
+      if(d<this.bestD-0.05){ this.bestD=d; this.stuckT=0; } else this.stuckT+=dt;   // no progress for a while (blocked by a zone/prop) → give up
       if(d<0.15){ this.target=null; this.setState('idle'); this.timer=rnd(1.5,4); if(this.onArrive){const f=this.onArrive;this.onArrive=null;f();} }
+      else if(this.stuckT>1.5) this.giveUp();
       else { let vx=dx/d, vz=dz/d;   // steer around other cats and props
         for(const o of cats.values()){ if(o===this||o.noCollide) continue; const ox=g.position.x-o.g.position.x, oz=g.position.z-o.g.position.z, od=Math.hypot(ox,oz); if(od<2.2&&od>1e-3){ const w=(1-od/2.2)*1.7; vx+=ox/od*w; vz+=oz/od*w; } }
         for(const p of props){ if(p===this.prop||p.type==='toy') continue; const ox=g.position.x-p.x, oz=g.position.z-p.z, od=Math.hypot(ox,oz), rr=p.r+1.0; if(od<rr&&od>1e-3){ const w=(1-od/rr)*2.4; vx+=ox/od*w; vz+=oz/od*w; } }
+        for(const q of zoneQuads){ const {d,e}=zoneDepth(q,g.position.x,g.position.z); if(d<ZONE_PAD+0.8){ const into=vx*e.nx+vz*e.nz; if(into<0){ vx-=into*e.nx; vz-=into*e.nz; }   // slide along the zone edge
+          if(d<ZONE_PAD){ const w=(ZONE_PAD-d)*2; vx+=e.nx*w; vz+=e.nz*w; } } }
         const vl=Math.hypot(vx,vz)||1; vx/=vl; vz/=vl;
         const st=Math.min(d,this.speed*dt); g.position.x=clamp(g.position.x+vx*st,-XMAX,XMAX); g.position.z=clamp(g.position.z+vz*st,ZMIN,ZMAX); this.facing=Math.atan2(-vz,vx);
         for(let i=0;i<4;i++) this.legs[i].rotation.z = Math.sin(now*this.speed*4 + (i%2?Math.PI:0) + (i>1?Math.PI/2:0))*0.6;
@@ -227,7 +232,7 @@ function handleChat(user, msg, key){
   else if(cmd==='pet'||cmd==='boop'||cmd==='hug'){
     const who=(parts[0]||'').replace(/^@/,''); const other=findCat(who);
     if(!other||other===cat) note='who? try !pet @name';
-    else { cat.noCollide=other.noCollide=true; const side=cat.g.position.x<other.g.position.x?-1:1;
+    else { cat.noCollide=other.noCollide=true; cat.pal=other; const side=cat.g.position.x<other.g.position.x?-1:1;
       cat.walkTo(other.g.position.x+side*1.15, other.g.position.z, 3.2);
       cat.onArrive=()=>{ cat.facing=side<0?0:Math.PI; other.facing=side<0?Math.PI:0; cat.play('nuzzle',1.4); other.play('nuzzle',1.4); cat.say('💕'); setTimeout(()=>other.say('💕'),300); setTimeout(()=>{cat.noCollide=other.noCollide=false;},1800); }; }
   }
@@ -259,7 +264,7 @@ function refill(){ for(const p of props){ if(p.amount!=null){ p.amount=6; propVi
 // click-to-place
 let placing=null; const ray=new THREE.Raycaster(), floor=new THREE.Plane(new THREE.Vector3(0,1,0),0), hit=new THREE.Vector3();
 canvas.addEventListener('pointerdown',e=>{ if(!placing) return; ray.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1),camera);
-  if(ray.ray.intersectPlane(floor,hit)){ spawnProp(placing, clamp(hit.x,-XMAX,XMAX), clamp(hit.z,ZMIN,ZMAX)); saveProps(); } placing=null; document.body.style.cursor=''; });
+  if(ray.ray.intersectPlane(floor,hit)){ const f=freePoint(hit.x,hit.z); spawnProp(placing, f.x, f.z); saveProps(); } placing=null; document.body.style.cursor=''; });
 addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.body.style.cursor=''; } });
 
 // ---------- streamer events ----------
@@ -311,11 +316,56 @@ if(q.get('ui')==='0') document.body.classList.add('hidden');
 if(q.get('bg')==='0') document.body.classList.remove('demo-bg');
 if(q.get('tags')==='0') labels.classList.add('notags');
 
+// ---------- no-go zones ----------
+// Screen-space rects (fractions of the viewport — the webcam, alerts box…) turned into floor-space convex polygons.
+// Top edge unprojects at foot level, bottom edge at head height, so a cat can't poke its head up into the rect.
+let zones=[], zoneQuads=[], zonesLocked=false;   // locked = came from ?nogo=, server can't override
+const CAT_H=2.1, ZONE_PAD=0.6;
+const zonesEl=document.getElementById('zones');
+function unproj(sx,sy,y){ const r=new THREE.Raycaster(); r.setFromCamera(new THREE.Vector2(sx*2-1,1-sy*2),camera); const v=new THREE.Vector3();
+  if(!r.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-y),v)) r.ray.at(200,v);   // above the horizon → just "very far"
+  return {x:v.x, z:v.z}; }
+function rebuildZones(){
+  camera.updateMatrixWorld(); camera.updateProjectionMatrix();   // may run before the first render — lookAt() alone leaves matrixWorld stale
+  zoneQuads=[];
+  for(const r of zones){
+    const pts=[unproj(r.x,r.y,0),unproj(r.x+r.w,r.y,0),unproj(r.x+r.w,r.y+r.h,CAT_H),unproj(r.x,r.y+r.h,CAT_H)];
+    const cx=pts.reduce((s,p)=>s+p.x,0)/4, cz=pts.reduce((s,p)=>s+p.z,0)/4, edges=[];
+    for(let i=0;i<4;i++){ const a=pts[i], b=pts[(i+1)%4];
+      // edges fully outside the stage are walls, not real boundaries — pushing "out" through them would just re-clamp into the zone
+      if((a.x>XMAX&&b.x>XMAX)||(a.x<-XMAX&&b.x<-XMAX)||(a.z>ZMAX&&b.z>ZMAX)||(a.z<ZMIN&&b.z<ZMIN)) continue;
+      let nx=b.z-a.z, nz=-(b.x-a.x); const l=Math.hypot(nx,nz)||1; nx/=l; nz/=l; if((cx-a.x)*nx+(cz-a.z)*nz>0){ nx=-nx; nz=-nz; }   // outward
+      edges.push({a,nx,nz}); }
+    if(edges.length) zoneQuads.push({pts,edges});
+  }
+  drawZones();
+}
+function zoneDepth(q,x,z){ let d=-1e9, e=null; for(const ed of q.edges){ const k=(x-ed.a.x)*ed.nx+(z-ed.a.z)*ed.nz; if(k>d){ d=k; e=ed; } } return {d,e}; }   // d<0 → inside
+function freePoint(x,z){ x=clamp(x,-XMAX,XMAX); z=clamp(z,ZMIN,ZMAX);
+  for(let k=0;k<3&&zoneQuads.length;k++) for(const q of zoneQuads){ const {d,e}=zoneDepth(q,x,z); if(d<ZONE_PAD){ x=clamp(x+e.nx*(ZONE_PAD-d+0.05),-XMAX,XMAX); z=clamp(z+e.nz*(ZONE_PAD-d+0.05),ZMIN,ZMAX); } }
+  return {x,z}; }
+function drawZones(){ zonesEl.innerHTML=''; for(const r of zones){ const d=document.createElement('div'); d.className='zone'; Object.assign(d.style,{left:r.x*100+'%',top:r.y*100+'%',width:r.w*100+'%',height:r.h*100+'%'}); zonesEl.appendChild(d); } }
+function saveZones(){ if(!zonesLocked) net.send({type:'zones', zones}); }
+// draw a zone by dragging on the stage
+let drawing=false, drag=null;
+const dragRect=e=>{ const x1=clamp(e.clientX/innerWidth,0,1), y1=clamp(e.clientY/innerHeight,0,1), r3=v=>Math.round(v*1000)/1000; return {x:r3(Math.min(drag.x0,x1)), y:r3(Math.min(drag.y0,y1)), w:r3(Math.abs(x1-drag.x0)), h:r3(Math.abs(y1-drag.y0))}; };
+canvas.addEventListener('pointerdown',e=>{ if(!drawing) return; drag={x0:e.clientX/innerWidth, y0:e.clientY/innerHeight, el:document.createElement('div')}; drag.el.className='zone tmp'; zonesEl.appendChild(drag.el); });
+addEventListener('pointermove',e=>{ if(!drag) return; const r=dragRect(e); Object.assign(drag.el.style,{left:r.x*100+'%',top:r.y*100+'%',width:r.w*100+'%',height:r.h*100+'%'}); });
+addEventListener('pointerup',e=>{ if(!drag) return; const r=dragRect(e); drag.el.remove(); drag=null; drawing=false; document.body.style.cursor=''; if(r.w>0.01&&r.h>0.01){ zones.push(r); rebuildZones(); saveZones(); } });
+$('#drawzone').onclick=()=>{ drawing=true; placing=null; document.body.style.cursor='crosshair'; };
+$('#clearzones').onclick=()=>{ zones=[]; rebuildZones(); saveZones(); };
+addEventListener('resize', rebuildZones);
+// ?nogo=x,y,w,h;x,y,w,h  (fractions, or percentages if any value > 1)   ?zones=1 shows them even in overlay mode
+if(q.get('nogo')){ zones=q.get('nogo').split(';').map(s=>{ let [x,y,w,h]=s.split(',').map(Number); if([x,y,w,h].some(v=>v>1)){ x/=100;y/=100;w/=100;h/=100; } return {x,y,w,h}; }).filter(r=>[r.x,r.y,r.w,r.h].every(Number.isFinite)); zonesLocked=true; }
+if(q.get('zones')==='1') document.body.classList.add('showzones');
+rebuildZones();
+
 function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); }
 // server sends this on connect: persisted cats + prop layout
 function applyInit(m){
   if(m.maxCats) MAX_CATS=m.maxCats;
   for(const p of props) scene.remove(p.mesh); props=[];
+  if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else defaultProps();
   for(const c of cats.values()) c.remove(); cats.clear();
   for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
@@ -345,6 +395,7 @@ function frame(now){
       for(const c of cats.values()){ const dx=p.x-c.g.position.x, dz=p.z-c.g.position.z, d=Math.hypot(dx,dz); if(d<0.85&&d>1e-3&&c.state==='walk'&&Math.hypot(p.vx,p.vz)<1){ p.vx=dx/d*3; p.vz=dz/d*3; } }
     } else { for(const c of cats.values()){ const dx=c.g.position.x-p.x, dz=c.g.position.z-p.z, d=Math.hypot(dx,dz), rr=p.r+0.35; if(d<rr&&d>1e-3&&c.prop!==p){ c.g.position.x=clamp(p.x+dx/d*rr,-XMAX,XMAX); c.g.position.z=clamp(p.z+dz/d*rr,ZMIN,ZMAX); } } }
   }
+  if(zoneQuads.length) for(const c of cats.values()){ const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
   if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
   for(const f of fishes){ f.userData.vy-=25*dt; f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(f.position.y<0.6){ scene.remove(f); } }

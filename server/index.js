@@ -35,6 +35,7 @@ function initPayload() {
     type: 'init',
     cats: db.recentCats(RESPAWN_HOURS * 3600e3, MAX_CATS),
     props: db.get('props', null),
+    zones: db.get('zones', []),
     maxCats: MAX_CATS,
   };
 }
@@ -112,6 +113,7 @@ wss.on('connection', ws => {
       case 'cat': if (m.key && m.look) db.saveCat(m.key, m.name || m.key, m.look); break;
       case 'catgone': if (m.key) db.deleteCat(m.key); break;
       case 'props': if (Array.isArray(m.props)) db.set('props', m.props); break;
+      case 'zones': if (Array.isArray(m.zones)) db.set('zones', m.zones); break;
       case 'chat': onChat({ platform: 'admin', user: m.user || 'streamer', msg: m.msg }); break;   // from admin page
       case 'event': fireEvent(m.name); break;
     }

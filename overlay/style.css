@@ -36,3 +36,7 @@
   #hideui{position:fixed;left:16px;top:16px;opacity:.75}
   body.hidden .panel,body.hidden #hideui{display:none}
   @media (prefers-reduced-motion:reduce){.bubble{animation:none}}
+  #zones{position:fixed;inset:0;pointer-events:none}
+  .zone{position:absolute;border:2px dashed #ff5a5a;background:rgba(255,80,80,.12);border-radius:6px}
+  .zone.tmp{border-style:solid}
+  body.hidden:not(.showzones) #zones{display:none}

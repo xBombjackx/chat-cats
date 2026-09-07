@@ -8,6 +8,7 @@
 </head>
 <body class="demo-bg">
 <canvas id="c"></canvas>
+<div id="zones"></div>
 <div id="labels"></div>
 
 <button id="hideui" title="Press H to bring it back">Hide UI (overlay mode)</button>
@@ -45,6 +46,8 @@
     <button data-prop="toy">Ball</button><button data-prop="post">Scratch post</button>
     <button id="refill">Refill</button><button id="clearprops">Clear</button>
   </div>
+  <h2 style="margin-top:10px">No-go zones <span style="font-weight:600;opacity:.6;font-size:12px">drag a box over your webcam etc.</span></h2>
+  <div class="row"><button id="drawzone">Draw zone</button><button id="clearzones">Clear zones</button></div>
   <div class="row"><button id="bg">Toggle demo background</button><button id="tags">Toggle name tags</button></div>
   <div class="hint">Transparent when the demo background is off — drop it in OBS as a browser source. Prop layout is saved to the server when placed.</div>
 </div>
