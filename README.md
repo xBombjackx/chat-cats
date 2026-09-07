@@ -11,7 +11,8 @@ npm run dev
 ```
 
 - Overlay: http://localhost:8080/ (press `H` to toggle the simulator/streamer panels)
-- Admin: http://localhost:8080/admin — source status, event buttons, chat-as-someone
+- Admin: http://localhost:8080/admin — source status, settings, event buttons, Twitch connect, chat-as-someone
+- Companion page for viewers: http://localhost:8080/play — the same cats live, click one to boop it (needs the server reachable from the internet, e.g. a Cloudflare tunnel or ngrok)
 - Standalone demo without a server: open `overlay/index.html?demo=1&ws=0`
 
 Node 22.13+ (uses the built-in `node:sqlite`). No token needed: Twitch chat is read anonymously over IRC, Kick over its public Pusher socket. If Kick's channel lookup gets Cloudflare-blocked, set `KICK_CHATROOM_ID` in `.env`.
@@ -51,8 +52,9 @@ Any HTTP GET or POST works:
 
 ```
 http://localhost:8080/api/event/fish          wrestlemania catnip fish laser nap refill clearprops
-http://localhost:8080/api/chat?user=bob&msg=!meow
+http://localhost:8080/api/chat?user=bob&msg=!meow       add &platform=twitch to test cooldowns
 http://localhost:8080/api/status
+http://localhost:8080/api/settings                       GET, or POST {"maxCats":30,"cooldownMs":2500,"respawnHours":6}
 ```
 
 ## Chat commands
@@ -61,13 +63,14 @@ http://localhost:8080/api/status
 - `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !leave`
 - `!pet @name` — walk over and nuzzle
 
-Per-user cooldown (`COOLDOWN_MS`), cat cap with least-recently-active eviction (`MAX_CATS`). Looks persist; cats active within `RESPAWN_HOURS` come back when the overlay reloads. Prop layout persists too.
+Per-user cooldown (a ⏳ bubble shows when a command is dropped), cat cap with least-recently-active eviction (raid visitors go first). Looks persist; cats active within the respawn window come back when the overlay reloads. Prop layout persists too. Cooldown, cap and respawn window are editable live on `/admin`; `.env` values are just the defaults.
 
 ## Layout
 
 - `overlay/` — the OBS browser source. Single page, three.js from CDN, no build step.
   - `cats.js` — scene, `Cat` class, command parser, props, events, render loop
-  - `net.js` — websocket client; receives `chat` / `event` / `init`, sends `cat` / `catgone` / `props` / `zones`
+  - `net.js` — websocket client; receives `chat` / `event` / `twitch` / `init` / `cooldown` / `config` / `poke`, sends `cat` / `catgone` / `props` / `zones` / `state`
+  - `?mode=play` — companion mode: no AI, mirrors `state` from the primary overlay at 8 Hz, clicks go back as `poke`
   - `style.css` — panels, name tags, speech bubbles
 - `server/` — Node, no framework
   - `index.js` — http (static overlay, `/admin`, `/api/*`) + websocket hub, cooldowns
@@ -86,4 +89,6 @@ Cats are keyed `platform:username`; `!pet @name` matches by display name.
 - [x] admin page / Stream Deck HTTP endpoints for events
 - [x] no-go zones (webcam rect etc.)
 - [x] channel-point / sub / raid reactions via EventSub
-- [ ] companion site for click interaction (Twitch Extension later)
+- [x] companion page for click interaction (`/play`)
+- [ ] Twitch Extension version of the companion page
+- [ ] more cat looks (imported .vox models?), more props, seasonal hats

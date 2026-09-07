@@ -40,3 +40,9 @@
   .zone{position:absolute;border:2px dashed #ff5a5a;background:rgba(255,80,80,.12);border-radius:6px}
   .zone.tmp{border-style:solid}
   body.hidden:not(.showzones) #zones{display:none}
+  /* companion page */
+  body.play{cursor:pointer}
+  #playhint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--paper);color:var(--ink);border:2px solid var(--line);
+    border-radius:14px;padding:6px 14px;font-weight:800;font-size:14px;box-shadow:0 3px 0 var(--line);pointer-events:none}
+  .ripple{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border:3px solid #fff;border-radius:50%;animation:ripple .55s ease-out forwards;pointer-events:none}
+  @keyframes ripple{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}

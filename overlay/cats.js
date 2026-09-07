@@ -9,6 +9,7 @@ camera.position.set(0, 9, 27); camera.lookAt(0, 0, -2.5);
 scene.add(new THREE.HemisphereLight(0xfff4e0, 0x6b5a7a, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(5, 10, 6); scene.add(sun);
 const XMAX = 11; let ZMIN = -7, ZMAX = 3;   // depth: ZMIN is far, ZMAX is near the viewer
+const PLAY = new URLSearchParams(location.search).get('mode')==='play';   // companion page: mirrors the overlay, no AI of its own
 function resize(){ renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
 addEventListener('resize', resize); resize();
 
@@ -103,7 +104,12 @@ class Cat {
     b.position.y = lying ? -0.3 : 0;
     for(const l of this.legs) l.visible = !lying;
 
-    if(s==='walk' && this.target){
+    if(this.mirror){   // companion page: position/state come from the overlay over the wire
+      const n=this.net; if(n){ const k=Math.min(1,dt*8); g.position.x+=(n.x-g.position.x)*k; g.position.z+=(n.z-g.position.z)*k; this.facing=n.f; }
+      if(this.moving){ for(let i=0;i<4;i++) this.legs[i].rotation.z = Math.sin(now*9 + (i%2?Math.PI:0) + (i>1?Math.PI/2:0))*0.6; b.position.y = Math.abs(Math.sin(now*9))*0.06; }
+      else for(const l of this.legs) l.rotation.z *= 0.8;
+      if(s==='sit'){ b.rotation.z=-0.28; b.position.y=0.1; } else if(!lying) b.rotation.z*=0.8;
+    } else if(s==='walk' && this.target){
       const dx=this.target.x-g.position.x, dz=this.target.z-g.position.z, d=Math.hypot(dx,dz);
       if(d<this.bestD-0.05){ this.bestD=d; this.stuckT=0; } else this.stuckT+=dt;   // no progress for a while (blocked by a zone/prop) → give up
       if(d<0.15){ this.target=null; this.setState('idle'); this.timer=rnd(1.5,4); if(this.onArrive){const f=this.onArrive;this.onArrive=null;f();} }
@@ -289,7 +295,7 @@ const events = {
     for(const c of cats.values()) setTimeout(()=>{ c.walkTo(rnd(-XMAX,XMAX),rnd(ZMIN,ZMAX),4); c.onArrive=()=>c.jump(); }, rnd(300,2500)); },
   laser(){ if(laser) return; laser=new THREE.Mesh(new THREE.CircleGeometry(0.18,12),new THREE.MeshBasicMaterial({color:0xff2b2b})); laser.rotation.x=-Math.PI/2; laser.position.y=0.02; laser.userData.t0=performance.now(); scene.add(laser);
     const chase=()=>{ if(!laser) return; for(const c of cats.values()){ c.walkTo(laser.position.x+rnd(-0.6,0.6), laser.position.z, 5); c.onArrive=()=>{ if(Math.random()<0.5) c.jump(); }; } };
-    chase(); laser.userData.iv=setInterval(chase,900);
+    if(!PLAY){ chase(); laser.userData.iv=setInterval(chase,900); }
     setTimeout(()=>{ clearInterval(laser.userData.iv); scene.remove(laser); laser=null; for(const c of cats.values()) c.say('…'); }, 12000); }
 };
 function toast(t){ logLine('event','',t); }
@@ -331,7 +337,7 @@ $('#bg').onclick=()=>document.body.classList.toggle('demo-bg');
 $('#tags').onclick=()=>labels.classList.toggle('notags');
 const st=document.createElement('style'); st.textContent='.notags .tag{display:none}'; document.head.appendChild(st);
 $('#hideui').onclick=()=>document.body.classList.add('hidden');
-addEventListener('keydown',e=>{ if(e.key==='h'&&document.activeElement.tagName!=='INPUT') document.body.classList.toggle('hidden'); });
+addEventListener('keydown',e=>{ if(!PLAY&&e.key==='h'&&document.activeElement.tagName!=='INPUT') document.body.classList.toggle('hidden'); });
 // URL params for OBS: ?ui=0&bg=0&tags=0
 const q=new URLSearchParams(location.search);
 if(q.get('depth')==='0'){ ZMIN=-1.6; ZMAX=1.8; camera.position.set(0,5.5,24); camera.lookAt(0,0.8,0); }
@@ -383,6 +389,39 @@ if(q.get('nogo')){ zones=q.get('nogo').split(';').map(s=>{ let [x,y,w,h]=s.split
 if(q.get('zones')==='1') document.body.classList.add('showzones');
 rebuildZones();
 
+// ---------- companion page (/play) ----------
+// overlay streams compact cat state to the server while anyone is watching; the companion mirrors it and sends clicks back as pokes
+let watchers=0;
+if(!PLAY) setInterval(()=>{ if(!watchers) return;
+  net.send({type:'state', cats:[...cats.values()].map(c=>[c.key,c.name,+c.g.position.x.toFixed(2),+c.g.position.z.toFixed(2),+c.facing.toFixed(2),c.state,c.bubbleEl?c.bubbleEl.textContent:'',c.g.position.y>0.05?1:0,`${c.look.body}/${c.look.eyes}/${c.look.pattern}/${c.look.hat}`])}); }, 125);
+function applyState(m){
+  const seen=new Set();
+  for(const [key,name,x,z,f,state,bubble,jumping,lk] of m.cats){ seen.add(key); let c=cats.get(key);
+    if(!c){ const [body,eyes,pattern,hat]=lk.split('/'); c=spawnCat(key,name,{body,eyes,pattern,hat},true); c.mirror=true; c.g.position.set(x,0,z); c.g.rotation.y=f; c.lk=lk; }
+    else if(c.lk!==lk){ const [body,eyes,pattern,hat]=lk.split('/'); c.look={body,eyes,pattern,hat}; c.build(); c.lk=lk; }
+    if(Math.hypot(c.g.position.x-x,c.g.position.z-z)>4) c.g.position.set(x,0,z);   // teleport → snap
+    c.net={x,z,f}; c.moving=state==='walk'; if(c.state!==state) c.setState(state);
+    if(bubble && bubble!==c.lastBubble) c.say(bubble); c.lastBubble=bubble;
+    if(jumping && !c.wasJumping) c.jump(); c.wasJumping=jumping;
+  }
+  for(const c of [...cats.values()]) if(!seen.has(c.key)) removeCat(c);
+  const h=document.getElementById('playhint'); if(h) h.textContent=cats.size?`${cats.size} cat${cats.size>1?'s':''} · click one to boop it`:'no cats yet — type !cat in chat';
+}
+function handlePoke(x,z){   // viewer clicked the stage: nearest cat reacts, or comes over to look
+  const f=freePoint(x,z); let best=null, bd=1e9;
+  for(const c of cats.values()){ const d=Math.hypot(c.g.position.x-f.x,c.g.position.z-f.z); if(d<bd){ bd=d; best=c; } }
+  if(!best) return;
+  if(bd<2.5){ if(best.state==='sleep'||best.state==='loaf'){ best.setState('idle'); best.timer=1; } best.target=null; best.facing=-Math.PI/2; best.jump(); best.say(pick(['!','?','mrrp','💕','boop'])); }
+  else if(best.state!=='walk'){ best.walkTo(f.x,f.z,3.5); best.onArrive=()=>{ best.facing=-Math.PI/2; best.say('?'); }; }
+}
+if(PLAY){
+  document.body.classList.add('hidden','play');
+  const hint=document.createElement('div'); hint.id='playhint'; hint.textContent='connecting…'; document.body.appendChild(hint);
+  canvas.addEventListener('pointerdown',e=>{ ray.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1),camera);
+    if(!ray.ray.intersectPlane(floor,hit)) return; net.send({type:'poke', x:hit.x, z:hit.z});
+    const r=document.createElement('div'); r.className='ripple'; r.style.left=e.clientX+'px'; r.style.top=e.clientY+'px'; labels.appendChild(r); setTimeout(()=>r.remove(),600); });
+}
+
 function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); }
 // server sends this on connect: persisted cats + prop layout
 function applyInit(m){
@@ -391,7 +430,7 @@ function applyInit(m){
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(Array.isArray(m.props)) for(const p of m.props) spawnProp(p.type,p.x,p.z); else defaultProps();
   for(const c of cats.values()) c.remove(); cats.clear();
-  for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
+  if(!PLAY) for(const c of m.cats||[]){ const cat=spawnCat(c.key,c.name,c.look,true); cat.last=performance.now()-(Date.now()-c.last); }
 }
 if(q.get('demo')==='1'){   // standalone demo, no server
   defaultProps();
@@ -406,7 +445,7 @@ function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now; const t=now/1000;
   // soft collision: push overlapping cats apart
   const arr=[...cats.values()], R=1.3;
-  for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){ const a=arr[i], b=arr[j]; if(a.noCollide||b.noCollide) continue;
+  if(!PLAY) for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){ const a=arr[i], b=arr[j]; if(a.noCollide||b.noCollide) continue;
     const dx=b.g.position.x-a.g.position.x, dz=b.g.position.z-a.g.position.z, d=Math.hypot(dx,dz);
     if(d<R && d>1e-4){ const push=(R-d)/2, nx=dx/d, nz=dz/d;
       a.g.position.x=clamp(a.g.position.x-nx*push,-XMAX,XMAX); a.g.position.z=clamp(a.g.position.z-nz*push,ZMIN,ZMAX);

@@ -16,13 +16,20 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const COOLDOWN_MS = +env('COOLDOWN_MS', 2500);   // per user, between accepted commands
-const MAX_CATS = +env('MAX_CATS', 30);
-const RESPAWN_HOURS = +env('RESPAWN_HOURS', 6);   // cats seen within this window come back on overlay load
 const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'refill', 'clearprops'];
+const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
-const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0 };
+const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
+// settings: .env gives defaults, /admin can change them live (stored in sqlite)
+const DEFAULTS = { cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
+const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
+function setSettings(patch) {
+  for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, +patch[k]);
+  db.set('settings', cfg);
+  broadcast({ type: 'config', maxCats: cfg.maxCats }, 'overlay');
+  return cfg;
+}
 
 // ---------- websocket hub ----------
 const clients = new Set();   // {ws, role}
@@ -35,10 +42,10 @@ function sendStatus() { broadcast({ type: 'status', ...status }, 'admin'); }
 function initPayload() {
   return {
     type: 'init',
-    cats: db.recentCats(RESPAWN_HOURS * 3600e3, MAX_CATS),
+    cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),
-    maxCats: MAX_CATS,
+    maxCats: cfg.maxCats,
   };
 }
 
@@ -49,7 +56,11 @@ function onChat({ platform, user, id, msg }) {
   if (!msg.startsWith('!')) return;
   const key = `${platform}:${(id || user).toLowerCase()}`;
   const now = Date.now();
-  if (platform !== 'admin' && now - (lastCmd.get(key) || 0) < COOLDOWN_MS) return;
+  if (platform !== 'admin' && now - (lastCmd.get(key) || 0) < cfg.cooldownMs) {
+    broadcast({ type: 'cooldown', key }, 'overlay');   // the cat shows a little hourglass
+    broadcast({ type: 'log', platform, user, msg: msg + ' (cooldown)' }, 'admin');
+    return;
+  }
   lastCmd.set(key, now);
   if (lastCmd.size > 5000) for (const [k, t] of lastCmd) if (now - t > 60e3) lastCmd.delete(k);
   db.touchCat(key);
@@ -120,13 +131,18 @@ const server = http.createServer(async (req, res) => {
   // API — GET is allowed too so Stream Deck's "Website" action can fire events
   if (p.startsWith('/api/')) {
     if (p === '/api/status') return json(res, 200, status);
+    if (p === '/api/settings') {
+      if (req.method === 'POST') { try { setSettings(JSON.parse(await readBody(req) || '{}')); } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }
+      return json(res, 200, { ...cfg, defaults: DEFAULTS });
+    }
     const ev = p.match(/^\/api\/event\/([a-z]+)$/);
     if (ev) return fireEvent(ev[1]) ? json(res, 200, { ok: true, event: ev[1] }) : json(res, 404, { ok: false, error: 'unknown event', events: EVENTS });
     if (p === '/api/chat') {
       let user = url.searchParams.get('user'), msg = url.searchParams.get('msg');
       if (req.method === 'POST') { try { const b = JSON.parse(await readBody(req) || '{}'); user = b.user ?? user; msg = b.msg ?? msg; } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }
       if (!msg) return json(res, 400, { ok: false, error: 'msg required' });
-      onChat({ platform: 'admin', user: user || 'streamer', msg });
+      const platform = ['twitch', 'kick', 'sim'].includes(url.searchParams.get('platform')) ? url.searchParams.get('platform') : 'admin';   // non-admin = cooldowns apply
+      onChat({ platform, user: user || 'streamer', msg });
       return json(res, 200, { ok: true });
     }
     if (p === '/api/twitch') {
@@ -157,6 +173,7 @@ const server = http.createServer(async (req, res) => {
     catch (e) { res.writeHead(500); return res.end('twitch auth failed: ' + e.message); }
   }
   if (p === '/admin' || p === '/admin/') return serveFile(res, path.join(ROOT, 'server', 'admin.html'));
+  if (p === '/play' || p === '/play/') { res.writeHead(302, { location: '/?mode=play' }); return res.end(); }
   // static overlay
   const rel = p === '/' ? 'index.html' : p.replace(/^\/+/, '');
   const file = path.join(ROOT, 'overlay', rel);
@@ -165,6 +182,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 const wss = new WebSocketServer({ server });
+let primary = null;   // the overlay whose cat positions get mirrored to the companion page
+function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
 wss.on('connection', ws => {
   const c = { ws, role: 'overlay' };
   clients.add(c);
@@ -172,10 +191,20 @@ wss.on('connection', ws => {
     let m; try { m = JSON.parse(buf.toString()); } catch { return; }
     switch (m.type) {
       case 'hello':
-        c.role = m.role === 'admin' ? 'admin' : 'overlay';
-        if (c.role === 'overlay') { status.overlays++; ws.send(JSON.stringify(initPayload())); sendStatus(); }
+        c.role = ['admin', 'play'].includes(m.role) ? m.role : 'overlay';
+        if (c.role === 'overlay') { status.overlays++; primary ??= c; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers(); }
+        else if (c.role === 'play') {
+          if (status.players >= MAX_PLAYERS) { ws.send(JSON.stringify({ type: 'full' })); ws.close(); return; }
+          status.players++; ws.send(JSON.stringify(initPayload())); sendStatus(); sendWatchers();
+        }
         else ws.send(JSON.stringify({ type: 'status', ...status }));
         break;
+      case 'state': if (c === primary && status.players) broadcast({ type: 'state', cats: m.cats, t: Date.now() }, 'play'); break;
+      case 'poke': {   // companion click; 1/s per viewer
+        if (c.role !== 'play') break;
+        const now = Date.now(); if (now - (c.lastPoke || 0) < 1000) break; c.lastPoke = now;
+        if (Number.isFinite(+m.x) && Number.isFinite(+m.z)) broadcast({ type: 'poke', x: +m.x, z: +m.z }, 'overlay');
+        break; }
       case 'cat': if (m.key && m.look) db.saveCat(m.key, m.name || m.key, m.look); break;
       case 'catgone': if (m.key) db.deleteCat(m.key); break;
       case 'props': if (Array.isArray(m.props)) db.set('props', m.props); break;
@@ -184,7 +213,12 @@ wss.on('connection', ws => {
       case 'event': fireEvent(m.name); break;
     }
   });
-  ws.on('close', () => { if (c.role === 'overlay') status.overlays = Math.max(0, status.overlays - 1); clients.delete(c); sendStatus(); });
+  ws.on('close', () => {
+    clients.delete(c);
+    if (c.role === 'overlay') { status.overlays = Math.max(0, status.overlays - 1); if (primary === c) primary = [...clients].find(x => x.role === 'overlay') || null; }
+    if (c.role === 'play') status.players = Math.max(0, status.players - 1);
+    sendStatus(); sendWatchers();
+  });
 });
 
 // ---------- chat sources ----------

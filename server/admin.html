@@ -22,7 +22,15 @@
     <div><span class="dot" id="d-ws"></span>server</div>
     <div><span class="dot" id="d-twitch"></span>twitch</div>
     <div><span class="dot" id="d-kick"></span>kick</div>
-    <div><span class="dot" id="d-ov"></span>overlay(s) connected: <b id="ovn">0</b></div>
+    <div><span class="dot" id="d-ov"></span>overlay(s) connected: <b id="ovn">0</b> · companion viewers: <b id="pln">0</b></div>
+    <h2 style="margin-top:10px">Settings</h2>
+    <div class="row" style="align-items:center">
+      <label>cat cap <input type="number" id="s-maxCats" min="1" max="200" style="width:64px"></label>
+      <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100" style="width:80px"></label>
+      <label>respawn h <input type="number" id="s-respawnHours" min="0" step="1" style="width:64px"></label>
+      <button id="savesettings">Save</button>
+    </div>
+    <div class="hint">Companion page for viewers: <code id="playurl"></code> — they see the cats live and click to boop them.</div>
     <div class="hint">Stream Deck: GET or POST <code>/api/event/&lt;name&gt;</code>, e.g. <code>http://localhost:8080/api/event/fish</code>.<br>
     Fake chat: <code>/api/chat?user=bob&amp;msg=!meow</code></div>
   </div>
@@ -78,7 +86,7 @@
     ws.onopen=()=>{ ws.send(JSON.stringify({type:'hello',role:'admin'})); $('#d-ws').classList.add('on'); };
     ws.onclose=()=>{ $('#d-ws').classList.remove('on'); setTimeout(connect,1500); };
     ws.onmessage=e=>{ const m=JSON.parse(e.data);
-      if(m.type==='status'){ $('#d-twitch').classList.toggle('on',m.twitch); $('#d-kick').classList.toggle('on',m.kick); $('#d-ov').classList.toggle('on',m.overlays>0); $('#ovn').textContent=m.overlays; }
+      if(m.type==='status'){ $('#d-twitch').classList.toggle('on',m.twitch); $('#d-kick').classList.toggle('on',m.kick); $('#d-ov').classList.toggle('on',m.overlays>0); $('#ovn').textContent=m.overlays; $('#pln').textContent=m.players||0; }
       if(m.type==='log'){ const d=document.createElement('div'); d.innerHTML=`<span style="opacity:.6">[${m.platform}]</span> <b></b>: <span></span>`; d.querySelector('b').textContent=m.user; d.querySelector('span:last-child').textContent=m.msg; log.prepend(d); while(log.children.length>60) log.lastChild.remove(); }
     };
   }
@@ -108,6 +116,13 @@
     const r=await fetch('/api/redeems',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(map)}).then(r=>r.json());
     $('#redeems').value=Object.entries(r.redeems||{}).map(([k,v])=>`${k} => ${v}`).join('\n'); };
   loadTwitch();
+
+  // settings
+  $('#playurl').textContent=location.origin+'/play';
+  const SKEYS=['maxCats','cooldownMs','respawnHours'];
+  const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; };
+  fetch('/api/settings').then(r=>r.json()).then(showSettings);
+  $('#savesettings').onclick=async()=>{ const body={}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };
 </script>
 </body>
 </html>

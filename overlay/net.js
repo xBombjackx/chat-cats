@@ -5,14 +5,23 @@
   let ws=null, retry=1000;
   function connect(){
     ws=new WebSocket(url);
-    ws.onopen=()=>{ retry=1000; ws.send(JSON.stringify({type:'hello',role:'overlay'})); logLine('server','','connected'); };
+    ws.onopen=()=>{ retry=1000; ws.send(JSON.stringify({type:'hello',role:PLAY?'play':'overlay'})); logLine('server','','connected'); };
     ws.onclose=()=>{ ws=null; setTimeout(connect, retry); retry=Math.min(retry*2, 10000); };
     ws.onerror=()=>ws?.close();
     ws.onmessage=e=>{ let m; try{ m=JSON.parse(e.data); }catch{ return; }
       if(m.type==='init') applyInit(m);
+      else if(PLAY){   // companion: mirror state, visual-only events
+        if(m.type==='state') applyState(m);
+        else if(m.type==='event' && (m.name==='fish'||m.name==='laser')) events[m.name]();
+        else if(m.type==='full'){ const h=document.getElementById('playhint'); if(h) h.textContent='room is full, try again later'; }
+      }
       else if(m.type==='chat') handleChat(m.user, m.msg, m.key);
       else if(m.type==='event' && events[m.name]) events[m.name]();
       else if(m.type==='twitch') handleTwitch(m);
+      else if(m.type==='cooldown'){ const c=cats.get(m.key); if(c) c.say('⏳'); }
+      else if(m.type==='config'){ if(m.maxCats) MAX_CATS=m.maxCats; }
+      else if(m.type==='watchers') watchers=m.n;
+      else if(m.type==='poke') handlePoke(m.x,m.z);
     };
   }
   net.send=o=>{ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); };
