@@ -95,13 +95,13 @@ class Cat {
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
   walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
   hopTo(x,z,y,into){ const from={x:this.g.position.x,z:this.g.position.z,y:this.elev}; this.play('hop',0.6,true); this.anim.from=from; this.anim.to={x,z,y,into:!!into}; }
-  dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
-  dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
+  dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
+  dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.hiding=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
   giveUp(){ if(this.onProp) this.dismountNow(); this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
   setState(s){ if(this.state==='sleep' && s!=='sleep' && !this.anim) this.resetAnim(); this.state=s; this.t=0; }   // sleeping poses need undoing
   // one-shot actions
   jump(){ if(this.jumpT<0) this.jumpT=0; }
-  play(name,dur,keepProp){ if(this.anim) this.resetAnim(); if(!keepProp&&!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
+  play(name,dur,keepProp){ if(this.anim) this.resetAnim(); if(!keepProp&&!this.onProp&&!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
   resetAnim(){ const b=this.body; this.anim=null; b.rotation.x=0; b.rotation.z=0; b.position.z=0; b.position.x=0; b.scale.copy(this.baseScale); this.tongue.visible=false; this.tongue.scale.y=1; b.position.y=0; this.g.position.y=this.elev; this.tail.rotation.x=0;
     for(const l of this.legs){ l.rotation.x=0; l.rotation.z=0; l.position.y=0.4; } this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.set(0,this.head.rotation.y,0); this.head.position.set(0.55,1.55,0); for(const e of this.eyes) e.scale.setScalar(1); }
   spin(){ this.spinT=0; }
@@ -118,7 +118,8 @@ class Cat {
     // lying states
     const posed = s==='sleep' && this.sleepStyle!=='loaf' && !this.inBox && !this.anim;   // side / back sleepers
     const lying = s==='loaf' || this.inBox || (s==='sleep' && !posed);
-    if(!this.anim){ b.position.y = lying ? -0.3 : 0; }
+    if(!this.anim){ b.position.y = this.inBox ? (this.hiding ? -0.85 : -0.3) : lying ? -0.3 : 0; }   // hiding = fully ducked, ear tips showing
+    if(this.inBox && this.hiding && !this.anim && !PLAY && !busy){ const v=near(this,2.4,c=>c.state==='walk'&&!c.noCollide&&!c.onProp&&!c.anim); if(v) ambush(this,v); }
     for(const l of this.legs) l.visible = !lying;
     if(posed){ const br=Math.sin(now*1.5+this.ph)*0.03;
       if(this.sleepStyle==='side'){ b.rotation.x=1.35; b.position.y=0.22+br; this.head.rotation.z=0.25; this.head.rotation.y=0; for(let i=0;i<4;i++) this.legs[i].rotation.z=(i%2?0.45:-0.5)+Math.sin(now*0.7+i)*0.08; }
@@ -182,6 +183,7 @@ class Cat {
           if(p>=1){ this.elev=t.y; this.inBox=t.into; } break; }
         case 'lickfoot': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-1.1*env; this.head.rotation.z=-0.55*env; this.head.position.x=0.55-0.25*env; this.legs[2].rotation.z=1.5*env; this.legs[2].rotation.x=-0.6*env; b.rotation.x=-0.25*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
         case 'lickbutt': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-2.3*env; this.head.rotation.z=-0.4*env; this.head.position.x=0.55-0.45*env; this.legs[3].rotation.x=1.6*env; b.rotation.x=0.55*env; b.position.y=0.05*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
+        case 'swipe': { const pop=Math.min(1,p*4); b.position.y=-0.85+1.0*Math.sin(pop*Math.PI/2)-0.3*Math.max(0,(p-0.7)/0.3); this.legs[0].visible=true; this.legs[0].rotation.z=-2.1*Math.min(1,p*3); this.legs[0].rotation.x=Math.sin(A.t*22)*0.9*(p<0.8?1:0); this.head.rotation.z=-0.15; for(const e of this.eyes) e.scale.setScalar(1.3); break; }   // pop up out of the box and bat
         case 'tackle': b.position.x=1.1*s1; b.rotation.z=-0.4*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.4*s1; this.head.rotation.z=-0.2*s1; break;   // lunge along facing
         case 'knocked': { const env=p<0.3?p/0.3:1-(p-0.3)/0.7; b.rotation.x=1.25*env; b.position.y=0.3*Math.sin(Math.min(1,p*2)*Math.PI); b.position.x=-0.8*s1; this.ears[0].rotation.x=this.ears[1].rotation.x=-0.6*env; for(const e of this.eyes) e.scale.setScalar(1+0.5*env); break; }   // shoved onto its side
         case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=1.55-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
@@ -197,7 +199,7 @@ class Cat {
         case 'scratch': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); b.rotation.z=0.8*env; b.position.y=0.32*env; this.legs[0].rotation.z=(-1.7+Math.sin(A.t*14)*0.4)*env; this.legs[1].rotation.z=(-1.7-Math.sin(A.t*14)*0.4)*env; break; }
         case 'bat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)); this.legs[0].rotation.z=-1.3*Math.abs(Math.sin(A.t*10))*env; b.rotation.z=-0.1*env; break; }
       }
-      if(p>=1){ this.resetAnim(); if(A.name!=='hop') this.releaseProp(); }   // hopping onto a perch keeps the reservation
+      if(p>=1){ this.resetAnim(); if(A.name!=='hop' && !this.onProp) this.releaseProp(); }   // parked cats keep their reservation until they dismount
     }
     // labels
     const v=new THREE.Vector3(g.position.x, g.position.y+ (lying?this.h*0.73:this.h), g.position.z).project(camera);
@@ -229,8 +231,9 @@ class Cat {
   pickIdle(){
     if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
       const r=Math.random();
-      if(r<0.25){ this.dismount(); } else if(r<0.55){ this.setState('loaf'); this.timer=rnd(4,8); } else if(r<0.7){ this.setState('sleep'); this.timer=rnd(6,10); }
-      else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
+      if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.6){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
+      else if(r<0.55){ this.setState('loaf'); this.timer=rnd(4,8); } else if(r<0.7){ this.setState('sleep'); this.timer=rnd(6,10); }
+      else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.hiding=false; this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
       return; }
     if(props.length && Math.random()<0.4){
       const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6){ this.goTo(game); return; }   // someone's playing — join in
@@ -373,6 +376,15 @@ const faceAt=(me,o)=>{ me.facing=Math.atan2(-(o.g.position.z-me.g.position.z), o
 function greet(a,b){   // friends meeting: nose boop
   a.noCollide=b.noCollide=true; a.pal=b; faceAt(a,b); faceAt(b,a); a.play('nuzzle',1.2,false); b.play('nuzzle',1.2,false); a.say(pick(['💕',':3','hi '+b.name])); setTimeout(()=>{ if(!b.dead) b.say(pick(['💕','prrr','hi!'])); },350);
   setTimeout(()=>{ a.noCollide=b.noCollide=false; a.pal=null; },1600);
+}
+function ambush(a,v){   // a is hiding in a box, v just walked past
+  a.hiding=false; faceAt(a,v); a.play('swipe',0.8,true); a.say(pick(['SWIPE','gotcha!','>:3','BOO']),'pow');
+  v.giveUp(); faceAt(v,a); v.play('knocked',0.7); setTimeout(()=>{ if(!v.dead) v.say(pick(['!!','HEY','😾','😱'])); },120);
+  setTimeout(()=>{ if(a.dead||v.dead) return;
+    if(isFriend(a,v)){ a.say(pick(['😹','lol','hehe'])); v.say(pick(['😹','rude','hehe'])); v.timer=1.5; }
+    else if(!busy && (isRival(a,v)||Math.random()<0.5)){ a.dismountNow(); wrestle(v,a,false); }   // the victim starts it
+    else { v.say(pick(['hmph','nope','😾'])); const dx=v.g.position.x-a.g.position.x, dz=v.g.position.z-a.g.position.z, d=Math.hypot(dx,dz)||1; v.walkTo(v.g.position.x+dx/d*5, v.g.position.z+dz/d*3, 4.5); a.timer=rnd(3,6); }
+  }, 900);
 }
 function stalk(cat, target){   // creep low toward a cat (or the ball), then pounce
   target=target||near(cat,9,c=>c.state!=='walk'&&!c.noCollide); const ball=props.find(p=>p.type==='toy');
