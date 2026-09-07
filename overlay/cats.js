@@ -149,6 +149,9 @@ class Cat {
       else { let vx=dx/d, vz=dz/d;   // steer around other cats and props
         if(!this.racing) for(const o of cats.values()){ if(o===this||o.noCollide) continue; const ox=g.position.x-o.g.position.x, oz=g.position.z-o.g.position.z, od=Math.hypot(ox,oz); if(od<2.2&&od>1e-3){ const w=(1-od/2.2)*1.7; vx+=ox/od*w; vz+=oz/od*w; } }
         for(const p of props){ if(p===this.prop||p.type==='toy') continue; const ox=g.position.x-p.x, oz=g.position.z-p.z, od=Math.hypot(ox,oz), rr=p.r+1.0; if(od<rr&&od>1e-3){ const w=(1-od/rr)*2.4; vx+=ox/od*w; vz+=oz/od*w; } }
+        if(obstacles.length){ const o=obstaclePush(g.position.x,g.position.z,1.4); if(o.nx||o.nz){ const into=vx*o.nx+vz*o.nz; if(into<0){ vx-=into*o.nx; vz-=into*o.nz; }   // slide along room furniture
+          if(Math.hypot(vx,vz)<0.35){ const r=o.rect; if(o.nx) vz+=(g.position.z<(r.z0+r.z1)/2)?-1:1; else vx+=(g.position.x<(r.x0+r.x1)/2)?-1:1; }   // head-on: go round the nearer end
+          vx+=o.nx*0.35; vz+=o.nz*0.35; } }
         for(const q of zoneQuads){ const {d,e}=zoneDepth(q,g.position.x,g.position.z); if(d<ZONE_PAD+0.8){ const into=vx*e.nx+vz*e.nz; if(into<0){ vx-=into*e.nx; vz-=into*e.nz; }   // slide along the zone edge
           if(d<ZONE_PAD){ const w=(ZONE_PAD-d)*2; vx+=e.nx*w; vz+=e.nz*w; } } }
         const vl=Math.hypot(vx,vz)||1; vx/=vl; vz/=vl;
@@ -540,7 +543,7 @@ if(q.get('tags')==='0') labels.classList.add('notags');
 const ENVS=['none','bedroom','kitchen','living','garden'], PERCHY=['bed','couch','counter','tree'];
 let envGroup=null, envName='none', envLocked=false;
 function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&(envGroup||name==='none')) return; envName=name;
-  if(envGroup){ scene.remove(envGroup); envGroup=null; } for(const p of [...props]) if(p.env) removeProp(p);
+  if(envGroup){ scene.remove(envGroup); envGroup=null; } for(const p of [...props]) if(p.env) removeProp(p); obstacles=[];
   document.body.classList.toggle('env', name!=='none');
   if(name==='none') return;
   const g=envGroup=new THREE.Group(); scene.add(g);
@@ -549,24 +552,25 @@ function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&
   const floor=c=>box(g,2*W,0.2,ZF-ZB,c,0,-0.1,(ZB+ZF)/2);
   const win=(x,y=5.2)=>{ box(g,3.4,2.8,0.1,0x9fd8ff,x,y,ZB+0.2); box(g,3.8,0.22,0.2,0xffffff,x,y+1.5,ZB+0.25); box(g,3.8,0.22,0.2,0xffffff,x,y-1.5,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x-1.8,y,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x+1.8,y,ZB+0.25); box(g,0.15,2.8,0.15,0xffffff,x,y,ZB+0.27); box(g,0.9,0.9,0.4,0xffffff,x+0.9,y+0.6,ZB+0.3); };
   const furn=(type,x,z)=>{ const p=spawnProp(type,x,z); p.env=true; return p; };
+  const solid=(w,h,d,c,x,y,z)=>{ addObstacle(x,z,w,d); return box(g,w,h,d,c,x,y,z); };   // decor that stands on the floor
   if(name==='bedroom'){ floor(0xb59a7f); walls(0xcdb6da); win(4.5); box(g,7.5,0.06,4.6,0xd9788a,-2.5,0.03,-1); box(g,6.5,0.04,3.8,0xe89aa8,-2.5,0.07,-1);
-    furn('bed',-7,-6.2); box(g,1.3,1.2,1.3,0x8b5a3c,-2.6,0.6,-8.6); box(g,0.15,0.9,0.15,0x333333,-2.6,1.65,-8.6); box(g,1.0,0.7,1.0,0xffe9a8,-2.6,2.4,-8.6);
+    furn('bed',-7,-6.2); solid(1.3,1.2,1.3,0x8b5a3c,-2.6,0.6,-8.6); box(g,0.15,0.9,0.15,0x333333,-2.6,1.65,-8.6); box(g,1.0,0.7,1.0,0xffe9a8,-2.6,2.4,-8.6);
     box(g,2.6,3.2,0.08,0xffb3c6,-9.5,5.4,ZB+0.2); box(g,1.8,1.3,0.1,0xf28c38,-9.5,5.6,ZB+0.25); box(g,1.2,0.4,0.1,0x2b2b33,-9.5,4.6,ZB+0.25);
-    box(g,2.2,2.0,1.2,0x8b5a3c,10,1.0,-8.5); box(g,0.9,0.08,0.9,0x5aa14f,10,2.4,-8.5); }
+    solid(2.2,2.0,1.2,0x8b5a3c,10,1.0,-8.5); box(g,0.9,0.08,0.9,0x5aa14f,10,2.4,-8.5); }
   if(name==='kitchen'){ floor(0xe6e0d3); for(let i=-3;i<=3;i++) for(let j=-2;j<=2;j++) if((i+j)%2===0) box(g,3.9,0.02,2.9,0xd6cfc0,i*4,0.01,j*3-2); walls(0xf3e7c6); win(-1);
-    box(g,2.4,5.2,1.4,0xdde3e8,10.5,2.6,-9.0); box(g,0.15,1.2,0.15,0x8a8f96,9.5,3.4,-8.2); box(g,2.4,0.1,1.4,0xb8c0c8,10.5,3.6,-9.0);
+    solid(2.4,5.2,1.4,0xdde3e8,10.5,2.6,-9.0); box(g,0.15,1.2,0.15,0x8a8f96,9.5,3.4,-8.2); box(g,2.4,0.1,1.4,0xb8c0c8,10.5,3.6,-9.0);
     furn('counter',-8,-8.6); furn('counter',-4.2,-8.6); box(g,2.2,0.08,1.1,0x9fd0ff,-8,1.8,-8.6);
-    box(g,3.4,1.6,1.4,0xd8d8d8,3.5,0.8,-8.6); for(const [x,z] of [[-0.8,-0.35],[0.8,-0.35],[-0.8,0.35],[0.8,0.35]]) box(g,0.7,0.06,0.7,0x222222,3.5+x,1.64,-8.6+z); box(g,3.4,0.9,0.15,0xc9c9c9,3.5,2.05,-9.25);
-    box(g,3,1.3,2,0x8b5a3c,7,0.65,-1.5); box(g,3.2,0.12,2.2,0xa0693f,7,1.36,-1.5); }
+    solid(3.4,1.6,1.4,0xd8d8d8,3.5,0.8,-8.6); for(const [x,z] of [[-0.8,-0.35],[0.8,-0.35],[-0.8,0.35],[0.8,0.35]]) box(g,0.7,0.06,0.7,0x222222,3.5+x,1.64,-8.6+z); box(g,3.4,0.9,0.15,0xc9c9c9,3.5,2.05,-9.25);
+    solid(3,1.3,2,0x8b5a3c,7,0.65,-1.5); box(g,3.2,0.12,2.2,0xa0693f,7,1.36,-1.5); }
   if(name==='living'){ floor(0xa78b6a); walls(0xd8e2c4); win(6); box(g,8,0.06,5,0x7a9bd1,-1,0.03,-1.5);
-    furn('couch',-6.5,-6.5); box(g,3.2,0.5,1.6,0x8b5a3c,-6.5,0.25,-2.8); box(g,3.4,0.1,1.8,0xa0693f,-6.5,0.55,-2.8);
-    box(g,3.6,0.9,1.2,0x3a3a3a,5.5,0.45,-9.0); box(g,3.4,2.0,0.2,0x111111,5.5,2.1,-9.0); box(g,3.0,1.7,0.05,0x2a4a6a,5.5,2.1,-8.88);
-    box(g,2.4,5.0,1.0,0x8b5a3c,11,2.5,-9.0); for(let i=0;i<4;i++){ box(g,2.2,0.08,0.9,0xa0693f,11,0.9+i*1.2,-9.0); for(let k=0;k<5;k++) box(g,0.3,0.9,0.7,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),10.1+k*0.42,1.4+i*1.2,-9.0); }
-    box(g,1.0,0.9,1.0,0xc9764b,-11,0.45,-8.5); const pl=new THREE.Mesh(new THREE.SphereGeometry(1.1,10,8),mat(0x5aa14f)); pl.position.set(-11,1.9,-8.5); g.add(pl); }
+    furn('couch',-6.5,-6.5); solid(3.2,0.5,1.6,0x8b5a3c,-6.5,0.25,-2.8); box(g,3.4,0.1,1.8,0xa0693f,-6.5,0.55,-2.8);
+    solid(3.6,0.9,1.2,0x3a3a3a,5.5,0.45,-9.0); box(g,3.4,2.0,0.2,0x111111,5.5,2.1,-9.0); box(g,3.0,1.7,0.05,0x2a4a6a,5.5,2.1,-8.88);
+    solid(2.4,5.0,1.0,0x8b5a3c,11,2.5,-9.0); for(let i=0;i<4;i++){ box(g,2.2,0.08,0.9,0xa0693f,11,0.9+i*1.2,-9.0); for(let k=0;k<5;k++) box(g,0.3,0.9,0.7,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),10.1+k*0.42,1.4+i*1.2,-9.0); }
+    solid(1.0,0.9,1.0,0xc9764b,-11,0.45,-8.5); const pl=new THREE.Mesh(new THREE.SphereGeometry(1.1,10,8),mat(0x5aa14f)); pl.position.set(-11,1.9,-8.5); g.add(pl); }
   if(name==='garden'){ floor(0x6fae5a); box(g,2*W,H,0.3,0x9fd3ff,0,H/2,ZB); const sun=new THREE.Mesh(new THREE.CircleGeometry(1.4,24),new THREE.MeshBasicMaterial({color:0xffe27a})); sun.position.set(-9,8,ZB+0.2); g.add(sun);
     for(let x=-W;x<=W;x+=2.4){ box(g,0.3,1.8,0.3,0xc9a06a,x,0.9,ZB+0.6); } box(g,2*W,0.25,0.15,0xc9a06a,0,1.3,ZB+0.6); box(g,2*W,0.25,0.15,0xc9a06a,0,0.6,ZB+0.6);
     for(let i=0;i<14;i++){ const x=rnd(-W+1,W-1), z=rnd(ZB+1,ZB+2.2); box(g,0.08,0.5,0.08,0x3f9b3f,x,0.25,z); box(g,0.3,0.25,0.3,pick([0xff6b6b,0xffd166,0xff9ecf,0xffffff]),x,0.55,z); }
-    furn('tree',8.5,-6); box(g,1.6,0.35,1.6,0x8a8f96,-8,0.17,-7.5); box(g,1.2,0.3,1.2,0x9aa0a8,-6.3,0.15,-8.2); }
+    furn('tree',8.5,-6); solid(1.6,0.35,1.6,0x8a8f96,-8,0.17,-7.5); solid(1.2,0.3,1.2,0x9aa0a8,-6.3,0.15,-8.2); }
 }
 // ---------- no-go zones ----------
 // Screen-space rects (fractions of the viewport — the webcam, alerts box…) turned into floor-space convex polygons.
@@ -593,7 +597,16 @@ function rebuildZones(){
   drawZones();
 }
 function zoneDepth(q,x,z){ let d=-1e9, e=null; for(const ed of q.edges){ const k=(x-ed.a.x)*ed.nx+(z-ed.a.z)*ed.nz; if(k>d){ d=k; e=ed; } } return {d,e}; }   // d<0 → inside
+// room decor footprints (axis-aligned rects on the floor). Cats steer round them, never target inside them, and get clamped out each frame.
+let obstacles=[];
+function addObstacle(x,z,w,d){ obstacles.push({x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2}); }
+function obstaclePush(x,z,pad){   // nearest-edge push out of any expanded rect; returns the moved point and the push normal
+  let nx=0, nz=0, rect=null;
+  for(const o of obstacles){ if(x>o.x0-pad&&x<o.x1+pad&&z>o.z0-pad&&z<o.z1+pad){ const dl=x-(o.x0-pad), dr=(o.x1+pad)-x, dn=z-(o.z0-pad), df=(o.z1+pad)-z, m=Math.min(dl,dr,dn,df); rect=o;
+    if(m===dl){ x=o.x0-pad; nx=-1; } else if(m===dr){ x=o.x1+pad; nx=1; } else if(m===dn){ z=o.z0-pad; nz=-1; } else { z=o.z1+pad; nz=1; } } }
+  return {x,z,nx,nz,rect}; }
 function freePoint(x,z){ x=clamp(x,-XMAX,XMAX); z=clamp(z,ZMIN,ZMAX);
+  if(obstacles.length){ const o=obstaclePush(x,z,0.7); x=clamp(o.x,-XMAX,XMAX); z=clamp(o.z,ZMIN,ZMAX); }
   for(let k=0;k<3&&zoneQuads.length;k++) for(const q of zoneQuads){ const {d,e}=zoneDepth(q,x,z); if(d<ZONE_PAD){ x=clamp(x+e.nx*(ZONE_PAD-d+0.05),-XMAX,XMAX); z=clamp(z+e.nz*(ZONE_PAD-d+0.05),ZMIN,ZMAX); } }
   return {x,z}; }
 function drawZones(){ zonesEl.innerHTML=''; for(const r of zones){ const d=document.createElement('div'); d.className='zone'; Object.assign(d.style,{left:r.x*100+'%',top:r.y*100+'%',width:r.w*100+'%',height:r.h*100+'%'}); zonesEl.appendChild(d); } }
@@ -730,6 +743,7 @@ function frame(now){
       for(const c of cats.values()){ const dx=p.x-c.g.position.x, dz=p.z-c.g.position.z, d=Math.hypot(dx,dz); if(d<0.85&&d>1e-3&&c.state==='walk'&&Math.hypot(p.vx,p.vz)<1){ p.vx=dx/d*3; p.vz=dz/d*3; } }
     } else { for(const c of cats.values()){ const dx=c.g.position.x-p.x, dz=c.g.position.z-p.z, d=Math.hypot(dx,dz), rr=p.r+0.35; if(d<rr&&d>1e-3&&c.prop!==p){ c.g.position.x=clamp(p.x+dx/d*rr,-XMAX,XMAX); c.g.position.z=clamp(p.z+dz/d*rr,ZMIN,ZMAX); } } }
   }
+  if(!PLAY && obstacles.length) for(const c of cats.values()){ if(c.onProp||c.anim?.name==='hop') continue; const o=obstaclePush(c.g.position.x,c.g.position.z,0.45); c.g.position.x=clamp(o.x,-XMAX,XMAX); c.g.position.z=clamp(o.z,ZMIN,ZMAX); }
   if(!PLAY && zoneQuads.length) for(const c of cats.values()){ if(c.onProp) continue; const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
   race.update(dt,t);
