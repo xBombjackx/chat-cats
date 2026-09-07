@@ -64,8 +64,10 @@ http://localhost:8080/api/settings                       GET, or POST {"maxCats"
 ## Chat commands
 
 - `!cat [color] [pattern] [hat] [size] eyes <color>` — spawn or restyle; sizes `kitten skinny adult fat`
-- `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !stalk !leave`
+- `!meow !jump !spin !sleep !loaf !wave !zoomies !stretch !roll !pounce !hiss !shake !stalk !lick !leave`
 - `!pet @name` — walk over and nuzzle · `!tackle @name` — pick a fight · `!stalk [@name]` — creep up and pounce
+
+Props: food bowl, water, scratch post, ball, cardboard box (cats climb in and peek out), perch (cats hop up and lounge). Each cat also has a fixed sleeping style: loaf, on its side, or belly-up.
 
 Cats have secret likes and dislikes (a stable hash per pair, nothing to configure): friends hang out together, greet with nose boops, share bowls and play ball together; rivals hiss when close, get stalked, fight over food and start scraps. Everyone else is neutral.
 

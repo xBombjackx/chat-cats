@@ -10,6 +10,8 @@ Stream overlay: voxel cats controlled by Twitch/Kick chat. Owner streams on Twit
 - All one-shot animations go through `Cat.play(name, dur)` — one `case` in the switch in `update()`, plus a command line in `handleChat`. Reset any transform you touch in the `p>=1` block.
 - Cat scale is `this.baseScale` (0.72 × the size multiplier from `SIZES`); never hardcode 0.72 in animations. Body parts are children of `this.body`; face, ears, hat and tongue are children of `this.head` (pivot at 0.55,1.55,0) so head animations carry them.
 - Interrupting an animation goes through `play()`, which calls `resetAnim()` first. New one-shots must be resettable by `resetAnim()` — add any new transform there.
+- Elevation: `this.elev` is the cat's resting height (perch). Anything that writes `g.position.y` must add `this.elev`. `onProp` / `inBox` mark a cat parked on a box/perch; `walkTo` and `giveUp` call `dismountNow()` first, so events never have to think about it.
+- The neck layer (idle wander, `this.look` glances, walk bob) only runs when no anim/groom/sleep pose owns the head. Per-cat traits (`sleepStyle`, `ph`) come from a hash of the key, like `affinity`.
 - Relationships: `affinity(a,b)` is a stable hash of the two keys (-1..1); `isFriend`/`isRival` at ±0.55. Social behaviour lives in `pickIdle`, `goTo`/`useProp`, `squabble`, `wrestle`, `greet`, `stalk`. `busy` guards one fight at a time.
 - Props: `spawnProp(type,x,z)`; cats reserve a prop via `goTo(p)` and must `releaseProp()` on any interruption (already wired into `walkTo` / `play`). Call `saveProps()` after layout changes.
 - Bounds: `XMAX`, `ZMIN` (far), `ZMAX` (near). Everything positional goes through `freePoint(x,z)`, which clamps to these and pushes out of no-go zones. `walkTo` already does it.

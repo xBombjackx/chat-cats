@@ -23,6 +23,7 @@ const SIZES = {adult:[1,1,1], kitten:[0.62,0.62,0.62], fat:[1.12,0.95,1.3], skin
 const pick = a => a[Math.floor(Math.random()*a.length)];
 const rnd = (a,b) => a + Math.random()*(b-a);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const normA = a=>Math.atan2(Math.sin(a),Math.cos(a));
 function mat(c){ return new THREE.MeshLambertMaterial({color:c}); }
 function box(g,w,h,d,c,x,y,z){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(c)); m.position.set(x,y,z); g.add(m); return m; }
 function darken(c,f){ const k=new THREE.Color(c); k.multiplyScalar(f); return k.getHex(); }
@@ -37,6 +38,9 @@ class Cat {
     const sp=freePoint(rnd(-XMAX,XMAX), rnd(ZMIN,ZMAX)); this.g.position.set(sp.x, 0, sp.z);
     scene.add(this.g);
     this.facing = Math.random()<0.5?0:Math.PI;
+    let hh=0; for(const ch of key) hh=(hh*31+ch.charCodeAt(0))>>>0;
+    this.sleepStyle=['loaf','side','back'][hh%3]; this.ph=(hh%1000)/159;   // secret trait + neck wander phase
+    this.elev=0; this.onProp=null; this.inBox=false;
     this.build();
     this.state = 'idle'; this.t = 0; this.timer = rnd(1,3); this.target = null; this.speed = 2.2;
     this.jumpT = -1; this.spinT = -1; this.waveT = -1; this.anim = null; this.noCollide = false; this.prop = null; this.bubbleEl = null; this.dead = false;
@@ -89,13 +93,17 @@ class Cat {
   }
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop=null; } }
-  walkTo(x,z,speed,keep){ if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
-  giveUp(){ this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
-  setState(s){ this.state=s; this.t=0; }
+  walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
+  hopTo(x,z,y,into){ const from={x:this.g.position.x,z:this.g.position.z,y:this.elev}; this.play('hop',0.6,true); this.anim.from=from; this.anim.to={x,z,y,into:!!into}; }
+  dismount(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.noCollide=false; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.releaseProp(); this.facing=Math.atan2(-(f.z-this.g.position.z), f.x-this.g.position.x); this.hopTo(f.x,f.z,0); }
+  dismountNow(){ const p=this.onProp; if(!p) return; this.onProp=null; this.inBox=false; this.noCollide=false; this.elev=0; const a=rnd(0,Math.PI*2), f=freePoint(p.x+Math.cos(a)*(p.r+0.9), p.z+Math.sin(a)*(p.r+0.9)); this.g.position.set(f.x,0,f.z); this.releaseProp(); if(this.anim) this.resetAnim(); }
+  giveUp(){ if(this.onProp) this.dismountNow(); this.target=null; this.onArrive=null; this.releaseProp(); this.noCollide=false; if(this.pal){ this.pal.noCollide=false; this.pal=null; } this.setState('idle'); this.timer=rnd(0.5,1.5); }
+  setState(s){ if(this.state==='sleep' && s!=='sleep' && !this.anim) this.resetAnim(); this.state=s; this.t=0; }   // sleeping poses need undoing
   // one-shot actions
   jump(){ if(this.jumpT<0) this.jumpT=0; }
   play(name,dur,keepProp){ if(this.anim) this.resetAnim(); if(!keepProp&&!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
-  resetAnim(){ const b=this.body; this.anim=null; b.rotation.x=0; b.rotation.z=0; b.position.z=0; b.position.x=0; b.scale.copy(this.baseScale); this.tongue.visible=false; b.position.y=0; this.g.position.y=0; this.tail.rotation.x=0; this.legs[0].rotation.z=this.legs[1].rotation.z=0; this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.z=0; this.head.position.y=1.55; for(const e of this.eyes) e.scale.setScalar(1); }
+  resetAnim(){ const b=this.body; this.anim=null; b.rotation.x=0; b.rotation.z=0; b.position.z=0; b.position.x=0; b.scale.copy(this.baseScale); this.tongue.visible=false; this.tongue.scale.y=1; b.position.y=0; this.g.position.y=this.elev; this.tail.rotation.x=0;
+    for(const l of this.legs){ l.rotation.x=0; l.rotation.z=0; l.position.y=0.4; } this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.set(0,this.head.rotation.y,0); this.head.position.set(0.55,1.55,0); for(const e of this.eyes) e.scale.setScalar(1); }
   spin(){ this.spinT=0; }
   wave(){ this.waveT=0; this.setState('idle'); this.timer=2; }
   update(dt, now){
@@ -108,9 +116,13 @@ class Cat {
     this.tail.rotation.z = 0.5 + Math.sin(now*3+this.g.position.x)*0.25;
     this.tail.rotation.x = Math.sin(now*2.2)*0.3;
     // lying states
-    const lying = s==='loaf'||s==='sleep';
-    b.position.y = lying ? -0.3 : 0;
+    const posed = s==='sleep' && this.sleepStyle!=='loaf' && !this.inBox && !this.anim;   // side / back sleepers
+    const lying = s==='loaf' || this.inBox || (s==='sleep' && !posed);
+    if(!this.anim){ b.position.y = lying ? -0.3 : 0; }
     for(const l of this.legs) l.visible = !lying;
+    if(posed){ const br=Math.sin(now*1.5+this.ph)*0.03;
+      if(this.sleepStyle==='side'){ b.rotation.x=1.35; b.position.y=0.22+br; this.head.rotation.z=0.25; this.head.rotation.y=0; for(let i=0;i<4;i++) this.legs[i].rotation.z=(i%2?0.45:-0.5)+Math.sin(now*0.7+i)*0.08; }
+      else { b.rotation.x=Math.PI; b.position.y=0.95+br; this.head.position.set(0.9,0.6,0); this.head.rotation.set(0,0,-0.9); for(let i=0;i<4;i++) this.legs[i].rotation.z=Math.sin(now*0.8+i)*0.25+(i>1?0.3:-0.3); } }
 
     if(this.mirror){   // companion page: position/state come from the overlay over the wire
       const n=this.net; if(n){ const k=Math.min(1,dt*8); g.position.x+=(n.x-g.position.x)*k; g.position.z+=(n.z-g.position.z)*k; this.facing=n.f; }
@@ -134,7 +146,7 @@ class Cat {
     } else {
       for(const l of this.legs) l.rotation.z *= 0.8;
       if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle();
-        if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ faceAt(this,o); const aff=affinity(this,o);
+        if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ this.look={x:o.g.position.x,z:o.g.position.z,until:now+rnd(1.2,2.5)}; if(Math.abs(normA(Math.atan2(-(o.g.position.z-g.position.z), o.g.position.x-g.position.x)-this.facing))>1.2) faceAt(this,o); const aff=affinity(this,o);
           if(aff<-0.55 && Math.random()<0.35){ this.play('arch',0.8); this.say(pick(['hss','😾','go away'])); } else if(aff>0.55 && Math.random()<0.2) this.say(pick(['💕',':3','prrr'])); } } } }
       if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; this.head.rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       else if(!lying) b.rotation.z *= 0.8;
@@ -146,9 +158,15 @@ class Cat {
         this.timer-=dt; if(this.timer<=0){ this.head.rotation.z=0; this.head.position.y=1.55; this.tongue.visible=false; this.legs[0].position.y=0.4; this.setState('idle'); this.timer=2; } }
     }
     // facing (smooth turn)
-    const ry = this.facing; let dr=((ry-g.rotation.y+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; g.rotation.y += dr*Math.min(1,dt*10);
+    // neck: idle wander, look at whatever caught its eye, bob while walking — only when nothing else is driving the head
+    if(!this.anim && !posed && s!=='groom' && !this.inBox){
+      let yaw=0.22*Math.sin(now*0.6+this.ph)+0.12*Math.sin(now*1.7+this.ph*2), pitch=0.05*Math.sin(now*0.9+this.ph);
+      if(this.look && now<this.look.until) yaw=clamp(normA(Math.atan2(-(this.look.z-g.position.z), this.look.x-g.position.x)-this.facing),-1.1,1.1);
+      if(s==='walk'){ pitch+=Math.sin(now*this.speed*4)*0.06; yaw+=clamp((this.turn||0)*0.8,-0.6,0.6); }
+      const k=Math.min(1,dt*6); this.head.rotation.y+=(yaw-this.head.rotation.y)*k; this.head.rotation.z+=(pitch-this.head.rotation.z)*k; }
+    const ry = this.facing; let dr=((ry-g.rotation.y+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; this.turn=dr; g.rotation.y += dr*Math.min(1,dt*10);
     // jump
-    if(this.jumpT>=0){ this.jumpT+=dt*1.8; const p=this.jumpT; if(p>=1){this.jumpT=-1; g.position.y=0; this.shadow.scale.setScalar(1);} else { g.position.y=Math.sin(p*Math.PI)*1.3; const sc=1-Math.sin(p*Math.PI)*0.4; this.shadow.scale.setScalar(sc); } }
+    if(this.jumpT>=0){ this.jumpT+=dt*1.8; const p=this.jumpT; if(p>=1){this.jumpT=-1; g.position.y=this.elev; this.shadow.scale.setScalar(1);} else { g.position.y=this.elev+Math.sin(p*Math.PI)*1.3; const sc=1-Math.sin(p*Math.PI)*0.4; this.shadow.scale.setScalar(sc); } }
     // spin
     if(this.spinT>=0){ this.spinT+=dt; g.rotation.y += dt*14; if(this.spinT>0.7){ this.spinT=-1; } }
     // wave (front-left leg)
@@ -159,7 +177,11 @@ class Cat {
         case 'stretch': this.legs[0].rotation.z=this.legs[1].rotation.z=-1.3*s1; b.rotation.z=-0.38*s1; b.position.y=-0.1*s1; this.tail.rotation.z=0.6+1.1*s1; break;
         case 'roll': { const th=p*Math.PI*2, cy=0.7*0.72; b.rotation.x=th; b.position.y=cy*(1-Math.cos(th))+0.15*s1; b.position.z=-cy*Math.sin(th); break; }
         case 'pounce': if(p<0.4){ const q=p/0.4; b.position.y=-0.22*q; b.rotation.z=0.18*q; this.tail.rotation.x=Math.sin(A.t*30)*0.4; }
-                       else { const q=(p-0.4)/0.6; g.position.y=Math.sin(q*Math.PI)*0.9; g.position.x=clamp(g.position.x+Math.cos(this.facing)*dt*4.5,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*dt*4.5,ZMIN,ZMAX); b.rotation.z=-0.25*Math.sin(q*Math.PI); this.legs[0].rotation.z=this.legs[1].rotation.z=-1.0*Math.sin(q*Math.PI); } break;
+                       else { const q=(p-0.4)/0.6; g.position.y=this.elev+Math.sin(q*Math.PI)*0.9; g.position.x=clamp(g.position.x+Math.cos(this.facing)*dt*4.5,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*dt*4.5,ZMIN,ZMAX); b.rotation.z=-0.25*Math.sin(q*Math.PI); this.legs[0].rotation.z=this.legs[1].rotation.z=-1.0*Math.sin(q*Math.PI); } break;
+        case 'hop': { const f=A.from,t=A.to; g.position.x=f.x+(t.x-f.x)*p; g.position.z=f.z+(t.z-f.z)*p; g.position.y=f.y+(t.y-f.y)*p+Math.sin(p*Math.PI)*0.9; b.rotation.z=-0.3*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.1*s1; this.legs[2].rotation.z=this.legs[3].rotation.z=0.8*s1;
+          if(p>=1){ this.elev=t.y; this.inBox=t.into; } break; }
+        case 'lickfoot': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-1.1*env; this.head.rotation.z=-0.55*env; this.head.position.x=0.55-0.25*env; this.legs[2].rotation.z=1.5*env; this.legs[2].rotation.x=-0.6*env; b.rotation.x=-0.25*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
+        case 'lickbutt': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-2.3*env; this.head.rotation.z=-0.4*env; this.head.position.x=0.55-0.45*env; this.legs[3].rotation.x=1.6*env; b.rotation.x=0.55*env; b.position.y=0.05*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
         case 'tackle': b.position.x=1.1*s1; b.rotation.z=-0.4*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.4*s1; this.head.rotation.z=-0.2*s1; break;   // lunge along facing
         case 'knocked': { const env=p<0.3?p/0.3:1-(p-0.3)/0.7; b.rotation.x=1.25*env; b.position.y=0.3*Math.sin(Math.min(1,p*2)*Math.PI); b.position.x=-0.8*s1; this.ears[0].rotation.x=this.ears[1].rotation.x=-0.6*env; for(const e of this.eyes) e.scale.setScalar(1+0.5*env); break; }   // shoved onto its side
         case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=1.55-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
@@ -175,7 +197,7 @@ class Cat {
         case 'scratch': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); b.rotation.z=0.8*env; b.position.y=0.32*env; this.legs[0].rotation.z=(-1.7+Math.sin(A.t*14)*0.4)*env; this.legs[1].rotation.z=(-1.7-Math.sin(A.t*14)*0.4)*env; break; }
         case 'bat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)); this.legs[0].rotation.z=-1.3*Math.abs(Math.sin(A.t*10))*env; b.rotation.z=-0.1*env; break; }
       }
-      if(p>=1){ this.resetAnim(); this.releaseProp(); }
+      if(p>=1){ this.resetAnim(); if(A.name!=='hop') this.releaseProp(); }   // hopping onto a perch keeps the reservation
     }
     // labels
     const v=new THREE.Vector3(g.position.x, g.position.y+ (lying?this.h*0.73:this.h), g.position.z).project(camera);
@@ -198,12 +220,18 @@ class Cat {
     if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
     else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.play('drink',3); this.say('lap lap'); }
     else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
+    else if(p.type==='box'||p.type==='perch'){ this.onProp=p; this.noCollide=true; this.hopTo(p.x,p.z,p.h||0,p.type==='box'); this.say(pick(p.type==='box'?['box!','if i fits…','mine now']:['👀','up here','👑'])); }
     else if(p.type==='toy'){ this.play('bat',1.0); setTimeout(()=>{ if(p.mesh.parent){ p.vx=Math.cos(this.facing)*6; p.vz=-Math.sin(this.facing)*6; } },350); if(Math.random()<0.5) this.say('!');
       // rope a nearby idle cat into the game
       const ok=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide, buddy=near(this,7,c=>ok(c)&&isFriend(this,c))||near(this,7,c=>ok(c)&&!isRival(this,c));
       if(buddy && p.users<3 && Math.random()<0.6) setTimeout(()=>{ if(!buddy.dead&&!buddy.prop&&buddy.state==='idle'&&p.mesh.parent){ buddy.say(pick(['ooh','me too!','!'])); buddy.goTo(p); } }, 500); }
   }
   pickIdle(){
+    if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
+      const r=Math.random();
+      if(r<0.25){ this.dismount(); } else if(r<0.55){ this.setState('loaf'); this.timer=rnd(4,8); } else if(r<0.7){ this.setState('sleep'); this.timer=rnd(6,10); }
+      else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
+      return; }
     if(props.length && Math.random()<0.4){
       const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6){ this.goTo(game); return; }   // someone's playing — join in
       const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
@@ -219,7 +247,9 @@ class Cat {
     const r=Math.random();
     if(r<0.45) this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4));
     else if(r<0.65){ this.setState('sit'); this.timer=rnd(2,5); }
-    else if(r<0.8){ this.setState('groom'); this.timer=rnd(1,2); }
+    else if(r<0.74){ this.setState('groom'); this.timer=rnd(1,2); }
+    else if(r<0.77) this.play('lickfoot',1.8);
+    else if(r<0.8) this.play('lickbutt',2.0);
     else if(r<0.88){ this.setState('loaf'); this.timer=rnd(3,6); }
     else if(r<0.91){ this.setState('sleep'); this.timer=rnd(5,9); }
     else if(r<0.93) this.play('stretch',1.5);
@@ -260,6 +290,7 @@ function handleChat(user, msg, key){
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
     net.send({type:'cat', key, name:user, look:cat.look});
   } else if(!cat){ note='no cat yet — use !cat'; }
+  else if(cmd==='lick') cat.play(pick(['lickfoot','lickbutt']),1.9);
   else if(cmd==='meow') cat.say(pick(['meow','mrrp','meow~','MEOW','mrow?','prrr']));
   else if(cmd==='jump') cat.jump();
   else if(cmd==='spin') cat.spin();
@@ -301,6 +332,8 @@ function spawnProp(type,x,z){
   if(type==='bowl'){ box(g,1.1,0.35,1.1,0x8b5a3c,0,0.175,0); box(g,0.9,0.1,0.9,0x5e3a22,0,0.36,0); p.fill=box(g,0.8,0.22,0.8,0xc98a4b,0,0.5,0); p.fillY0=0.5; p.fillH=0.22; p.amount=6; }
   if(type==='water'){ box(g,1.1,0.3,1.1,0x6c8ed6,0,0.15,0); box(g,0.9,0.1,0.9,0x4a6cb0,0,0.31,0); p.fill=box(g,0.8,0.16,0.8,0x9fd0ff,0,0.42,0); p.fillY0=0.42; p.fillH=0.16; p.amount=6; }
   if(type==='post'){ box(g,1.4,0.25,1.4,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,2.4,8),mat(0xd8c3a5)); c.position.y=1.45; g.add(c); box(g,1.0,0.2,1.0,0x8b5a3c,0,2.75,0); box(g,0.7,0.12,0.7,0xb9574a,0,2.9,0); p.r=0.75; }
+  if(type==='box'){ const c=0xc9a06a, d=0xa8824f; box(g,1.7,0.1,1.5,d,0,0.05,0); box(g,1.7,0.9,0.1,c,0,0.5,-0.7); box(g,1.7,0.9,0.1,c,0,0.5,0.7); box(g,0.1,0.9,1.5,c,-0.8,0.5,0); box(g,0.1,0.9,1.5,c,0.8,0.5,0); const flap=box(g,0.9,0.06,0.6,d,0,0.98,0.95); flap.rotation.x=0.6; p.r=0.95; p.h=0; }
+  if(type==='perch'){ box(g,0.6,0.25,0.6,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.5,8),mat(0xd8c3a5)); c.position.y=0.9; g.add(c); box(g,2.0,0.18,1.6,0x8b5a3c,0,1.7,0); box(g,1.8,0.08,1.4,0xb9574a,0,1.83,0); p.r=1.0; p.h=1.87; }
   if(type==='toy'){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8),mat(pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff]))); b.position.y=0.35; g.add(b); p.ball=b; p.r=0.35; p.vx=0; p.vz=0; }
   propVisual(p); props.push(p); return p;
 }
@@ -501,7 +534,7 @@ if(PLAY){
     const r=document.createElement('div'); r.className='ripple'; r.style.left=e.clientX+'px'; r.style.top=e.clientY+'px'; labels.appendChild(r); setTimeout(()=>r.remove(),600); });
 }
 
-function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); }
+function defaultProps(){ spawnProp('bowl',-6,1.5); spawnProp('water',-4.5,1.8); spawnProp('post',7,-3); spawnProp('toy',2,0); spawnProp('box',-8.5,-4); spawnProp('perch',3.5,-5.5); }
 // server sends this on connect: persisted cats + prop layout
 let booted=false;
 function applyInit(m){
@@ -540,7 +573,7 @@ function frame(now){
       for(const c of cats.values()){ const dx=p.x-c.g.position.x, dz=p.z-c.g.position.z, d=Math.hypot(dx,dz); if(d<0.85&&d>1e-3&&c.state==='walk'&&Math.hypot(p.vx,p.vz)<1){ p.vx=dx/d*3; p.vz=dz/d*3; } }
     } else { for(const c of cats.values()){ const dx=c.g.position.x-p.x, dz=c.g.position.z-p.z, d=Math.hypot(dx,dz), rr=p.r+0.35; if(d<rr&&d>1e-3&&c.prop!==p){ c.g.position.x=clamp(p.x+dx/d*rr,-XMAX,XMAX); c.g.position.z=clamp(p.z+dz/d*rr,ZMIN,ZMAX); } } }
   }
-  if(!PLAY && zoneQuads.length) for(const c of cats.values()){ const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
+  if(!PLAY && zoneQuads.length) for(const c of cats.values()){ if(c.onProp) continue; const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
   if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
   for(const f of fishes){ f.userData.vy-=25*dt; f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(f.position.y<0.6){ scene.remove(f); } }
