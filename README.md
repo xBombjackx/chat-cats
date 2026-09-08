@@ -77,6 +77,10 @@ http://localhost:8080/api/status
 http://localhost:8080/api/settings                       GET, or POST {"maxCats":30,"cooldownMs":2500,"respawnHours":6}
 ```
 
+## Animals
+
+The rig is species-based. Cats, dogs, raccoons and otters ship; each species is one body-builder function plus a voice table, and everything else (traits, hunger, rooms, furniture, races, fights, sneak attacks, the companion page) is shared. Pick the channel's animal in the admin settings: cats, dogs, raccoons, otters, or **mixed**, where `!cat`, `!dog`, `!raccoon` and `!otter` each spawn their own kind. In single-animal mode every spawn command makes that animal, so a dog channel's viewers can still type `!cat` out of habit. `!meow` / `!bark` / `!woof` / `!chitter` / `!squeak` / `!speak` all do the species' noise. Dogs get `spotted` and `patch` patterns and pant; raccoons have the mask and ringed tail; otters are long and low with a flat tail.
+
 ## Chat commands
 
 - `!cat [color] [pattern] [hat] [size] eyes <color>` — spawn or restyle; sizes `kitten skinny adult fat`

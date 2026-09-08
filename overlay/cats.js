@@ -15,16 +15,16 @@ addEventListener('resize', resize); resize();
 
 // ---------- helpers ----------
 const COLORS = {orange:0xf28c38, ginger:0xf28c38, black:0x2b2b33, white:0xf5f1ea, gray:0x8e8e96, grey:0x8e8e96,
-  pink:0xf5a3c7, brown:0x7a4b2a, cream:0xf1dfb8, blue:0x7aa6d9, purple:0xa98bd6, mint:0x9fd6b5, tortie:0x6b3a1e};
+  pink:0xf5a3c7, brown:0x7a4b2a, cream:0xf1dfb8, golden:0xd9a441, tan:0xc9a06a, silver:0xb8bcc4, blue:0x7aa6d9, purple:0xa98bd6, mint:0x9fd6b5, tortie:0x6b3a1e};
 const EYES = {green:0x5fd36a, blue:0x5aa9ff, yellow:0xffd54a, amber:0xffa62b, pink:0xff7bd1, red:0xff5252, gold:0xffd54a};
 const HATS = ['none','crown','beanie','party','bow','halo'];
-const PATTERNS = ['solid','tabby','tuxedo','calico'];
+const PATTERNS = ['solid','tabby','tuxedo','calico','spotted','patch'];
 // personality: multipliers on the idle AI. Picked from the key hash like everything else secret.
 const TRAITS = { chill:{}, lazy:{walk:0.5,scrap:0.5,zoom:0,follow:0.7,ambush:0.5,sleep:1.7,speed:0.85,sit:1.6},
   zoomy:{walk:1.5,zoom:2,sleep:0.6,speed:1.3,sit:0.6,ball:1.6}, clingy:{scrap:0.4,follow:2,hiss:0.4,ambush:0.5,greet:2,sit:1.2},
   grumpy:{walk:0.8,scrap:2,follow:0.4,hiss:2.5,ambush:1.8,greet:0.5,hungry:0.6} };
 const TRAIT_DEF = {walk:1,scrap:1,zoom:1,follow:1,ambush:1,sleep:1,speed:1,sit:1,ball:1,hiss:1,greet:1,hungry:0.7};
-const SIZES = {adult:[1,1,1], kitten:[0.62,0.62,0.62], fat:[1.12,0.95,1.3], skinny:[0.95,1.06,0.8], chonk:[1.12,0.95,1.3], smol:[0.62,0.62,0.62]};   // body scale multipliers x,y,z
+const SIZES = {adult:[1,1,1], kitten:[0.62,0.62,0.62], puppy:[0.62,0.62,0.62], pup:[0.62,0.62,0.62], baby:[0.62,0.62,0.62], fat:[1.12,0.95,1.3], skinny:[0.95,1.06,0.8], chonk:[1.12,0.95,1.3], smol:[0.62,0.62,0.62]};   // body scale multipliers x,y,z
 const pick = a => a[Math.floor(Math.random()*a.length)];
 const rnd = (a,b) => a + Math.random()*(b-a);
 const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
@@ -34,11 +34,87 @@ function box(g,w,h,d,c,x,y,z){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,
 function darken(c,f){ const k=new THREE.Color(c); k.multiplyScalar(f); return k.getHex(); }
 function parseColor(s, table){ if(table[s]!=null) return table[s]; if(/^#?[0-9a-f]{6}$/i.test(s)) return parseInt(s.replace('#',''),16); return null; }
 
+// ---------- species ----------
+// Every species builds the same rig: body group (scale 0.72), this.head at this.headPos (face/ears/hat are its children), ears[2], eyes[2] (groups),
+// legs[4] (pivot y=0.4), tail (group), tongue, hatG (on the head), h (label height). Animations only touch those, so they work for all of them.
+function lighten(c,f){ const k=new THREE.Color(c); k.lerp(new THREE.Color(0xffffff), Math.min(1,f-1)); return k.getHex(); }
+function buildCat(t,L,c,e,dark,white){ const b=t.body;
+  box(b,1.1,0.75,0.8,c,0,0.7,0);                       // stubby torso
+  if(L.size==='fat'||L.size==='chonk') box(b,1.0,0.55,0.9,c,0.05,0.42,0);   // belly
+  const hd = t.head = new THREE.Group(); t.headPos=new THREE.Vector3(0.55,1.55,0); hd.position.copy(t.headPos); b.add(hd);
+  box(hd,1.35,1.2,1.25,c,0,0,0);                        // big head
+  t.ears=[ box(hd,0.45,0.42,0.22,c,-0.25,0.75,-0.42), box(hd,0.45,0.42,0.22,c,-0.25,0.75,0.42) ];
+  box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,-0.42); box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,0.42);
+  t.eyes=[]; for(const z of [-0.33,0.33]){ const eg=new THREE.Group(); eg.position.set(0.68,0.05,z); hd.add(eg);
+    box(eg,0.08,0.4,0.36,e,0,0,0); box(eg,0.1,0.14,0.12,0x111111,0.01,-0.02,0.03); box(eg,0.12,0.1,0.08,0xffffff,0.02,0.1,-0.08); t.eyes.push(eg); }
+  box(hd,0.1,0.1,0.16,0xff8fa3,0.68,-0.25,0);              // nose
+  box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,-0.1); box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,0.1); // w mouth
+  t.tongue=box(hd,0.1,0.14,0.14,0xff7b9c,0.7,-0.47,0); t.tongue.visible=false;
+  box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,-0.5); box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,0.5); // blush
+  box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,0.5); box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,-0.5);   // whiskers
+  if(L.pattern==='tuxedo'){ box(b,0.2,0.4,0.45,white,0.5,0.6,0); box(hd,0.1,0.5,0.55,white,0.67,-0.4,0); }
+  if(L.pattern==='tabby'){ for(let i=0;i<2;i++) box(b,0.16,0.12,0.85,dark,-0.35+i*0.4,1.1,0); box(hd,0.55,0.12,0.6,dark,0,0.62,0); box(hd,0.16,0.14,0.3,dark,0,0.61,-0.5); box(hd,0.16,0.14,0.3,dark,0,0.61,0.5); }
+  if(L.pattern==='calico'){ box(b,0.5,0.35,0.85,0xf28c38,-0.25,0.95,0); box(hd,0.6,0.5,0.55,0x2b2b33,-0.1,0.45,-0.45); box(hd,0.4,0.3,0.3,0xf28c38,0.35,0.35,0.6); }
+  t.legs=[]; for(const [x,z] of [[0.35,-0.25],[0.35,0.25],[-0.35,-0.25],[-0.35,0.25]]){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.32,0.4,0.32,c,0,-0.2,0); box(p,0.33,0.12,0.34,L.pattern==='tuxedo'?white:c,0,-0.35,0); b.add(p); t.legs.push(p); }
+  t.tail = new THREE.Group(); t.tail.position.set(-0.55,0.85,0); box(t.tail,0.22,0.7,0.22,c,-0.05,0.3,0); box(t.tail,0.24,0.24,0.24,L.pattern==='tabby'?dark:c,-0.05,0.72,0); t.tail.rotation.z = 0.6; b.add(t.tail);
+  t.hatG=new THREE.Group(); t.hatG.position.set(0,0.6,0); hd.add(t.hatG); t.h=2.05; }
+function buildDog(t,L,c,e,dark,white){ const b=t.body, light=lighten(c,1.3);
+  box(b,1.5,0.8,0.85,c,0,0.75,0); box(b,0.5,0.5,0.62,light,0.55,0.55,0);   // longer torso, lighter chest
+  if(L.size==='fat'||L.size==='chonk') box(b,1.3,0.6,0.95,c,0,0.42,0);
+  const hd=t.head=new THREE.Group(); t.headPos=new THREE.Vector3(0.75,1.55,0); hd.position.copy(t.headPos); b.add(hd);
+  box(hd,1.1,1.0,1.0,c,0,0,0); box(hd,0.6,0.5,0.62,light,0.75,-0.15,0); box(hd,0.22,0.2,0.24,0x222222,1.06,-0.02,0);   // head, snout, nose
+  t.ears=[]; for(const z of [-0.58,0.58]){ const ear=box(hd,0.28,0.7,0.34,dark,-0.15,0.05,z); ear.rotation.x=z<0?-0.25:0.25; t.ears.push(ear); }   // floppy
+  t.eyes=[]; for(const z of [-0.3,0.3]){ const eg=new THREE.Group(); eg.position.set(0.53,0.2,z); hd.add(eg); box(eg,0.08,0.26,0.24,e,0,0,0); box(eg,0.1,0.12,0.1,0x111111,0.01,-0.02,0.02); box(eg,0.1,0.07,0.06,0xffffff,0.02,0.07,-0.05); t.eyes.push(eg); }
+  box(hd,0.06,0.06,0.3,0x552200,0.98,-0.28,0);
+  t.tongue=box(hd,0.14,0.16,0.18,0xff7b9c,0.95,-0.45,0); t.tongue.visible=false;
+  if(L.pattern==='patch') box(hd,0.12,0.42,0.42,dark,0.5,0.2,0.3);
+  if(L.pattern==='spotted'){ for(const [x,y,z,w] of [[-0.4,0.9,1,0.35],[0.2,1.0,-1,0.3],[-0.1,0.55,1,0.25],[0.45,0.8,-1,0.22]]) box(b,w,w,0.12,dark,x,y,z*0.44); box(hd,0.3,0.3,0.12,dark,-0.2,0.25,-0.51); }
+  if(L.pattern==='tuxedo'||L.pattern==='calico') box(b,0.12,0.5,0.6,white,0.76,0.7,0);
+  if(L.pattern==='tabby') for(let i=0;i<3;i++) box(b,0.14,0.12,0.9,dark,-0.5+i*0.4,1.16,0);
+  t.legs=[]; for(const [x,z] of [[0.5,-0.28],[0.5,0.28],[-0.5,-0.28],[-0.5,0.28]]){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.3,0.42,0.3,c,0,-0.21,0); box(p,0.32,0.12,0.34,light,0,-0.38,0); b.add(p); t.legs.push(p); }
+  t.tail=new THREE.Group(); t.tail.position.set(-0.75,0.95,0); box(t.tail,0.16,0.75,0.16,c,-0.05,0.35,0); box(t.tail,0.2,0.2,0.2,light,-0.05,0.75,0); t.tail.rotation.z=0.9; b.add(t.tail);
+  t.hatG=new THREE.Group(); t.hatG.position.set(-0.05,0.5,0); hd.add(t.hatG); t.h=2.15; }
+function buildRaccoon(t,L,c,e,dark,white){ const b=t.body, blk=0x2a2a30, lite=0xd8d8dc;
+  box(b,1.25,0.85,0.95,c,0,0.72,0); box(b,0.9,0.2,0.9,dark,-0.1,1.2,0);   // torso, darker back
+  if(L.size==='fat'||L.size==='chonk') box(b,1.1,0.6,1.0,c,0,0.42,0);
+  const hd=t.head=new THREE.Group(); t.headPos=new THREE.Vector3(0.6,1.5,0); hd.position.copy(t.headPos); b.add(hd);
+  box(hd,1.15,0.95,1.1,c,0,0,0); box(hd,0.5,0.42,0.5,lite,0.72,-0.18,0); box(hd,0.18,0.16,0.2,blk,1.0,-0.12,0);   // head, snout, nose
+  box(hd,0.3,0.34,1.14,blk,0.45,0.08,0); box(hd,0.28,0.14,1.16,lite,0.46,0.34,0); box(hd,0.28,0.14,1.16,lite,0.46,-0.18,0);   // the mask
+  t.ears=[ box(hd,0.34,0.36,0.16,dark,-0.15,0.6,-0.42), box(hd,0.34,0.36,0.16,dark,-0.15,0.6,0.42) ]; box(hd,0.2,0.2,0.12,lite,-0.12,0.58,-0.42); box(hd,0.2,0.2,0.12,lite,-0.12,0.58,0.42);
+  t.eyes=[]; for(const z of [-0.3,0.3]){ const eg=new THREE.Group(); eg.position.set(0.62,0.08,z); hd.add(eg); box(eg,0.08,0.28,0.26,e,0,0,0); box(eg,0.1,0.12,0.1,0x111111,0.01,-0.02,0.02); box(eg,0.1,0.07,0.06,0xffffff,0.02,0.07,-0.05); t.eyes.push(eg); }
+  t.tongue=box(hd,0.1,0.12,0.14,0xff7b9c,0.9,-0.4,0); t.tongue.visible=false;
+  box(hd,0.06,0.04,0.4,0xffffff,0.85,-0.2,0.4); box(hd,0.06,0.04,0.4,0xffffff,0.85,-0.2,-0.4);
+  if(L.pattern==='tuxedo') box(b,0.14,0.45,0.6,lite,0.63,0.65,0);
+  t.legs=[]; for(const [x,z] of [[0.38,-0.27],[0.38,0.27],[-0.38,-0.27],[-0.38,0.27]]){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.3,0.4,0.3,dark,0,-0.2,0); box(p,0.32,0.12,0.34,blk,0,-0.36,0); b.add(p); t.legs.push(p); }
+  t.tail=new THREE.Group(); t.tail.position.set(-0.6,0.8,0); for(let i=0;i<5;i++) box(t.tail,0.36-i*0.03,0.26,0.36-i*0.03,i%2?lite:blk,-0.08*i,0.13+i*0.26,0); t.tail.rotation.z=1.0; b.add(t.tail);   // ringed
+  t.hatG=new THREE.Group(); t.hatG.position.set(0,0.5,0); hd.add(t.hatG); t.h=2.05; }
+function buildOtter(t,L,c,e,dark,white){ const b=t.body, belly=lighten(c,1.5);
+  box(b,1.8,0.7,0.85,c,0,0.6,0); box(b,0.9,0.45,0.62,belly,0.5,0.55,0); box(b,1.2,0.3,0.7,belly,-0.1,0.4,0);   // long low body, pale belly
+  if(L.size==='fat'||L.size==='chonk') box(b,1.5,0.5,0.95,c,0,0.4,0);
+  const hd=t.head=new THREE.Group(); t.headPos=new THREE.Vector3(0.85,1.25,0); hd.position.copy(t.headPos); b.add(hd);
+  box(hd,0.95,0.8,0.95,c,0,0,0); box(hd,0.5,0.42,0.62,belly,0.6,-0.12,0); box(hd,0.2,0.16,0.22,0x222222,0.88,-0.02,0);   // head, muzzle, nose
+  t.ears=[ box(hd,0.2,0.2,0.12,dark,-0.15,0.38,-0.42), box(hd,0.2,0.2,0.12,dark,-0.15,0.38,0.42) ];
+  t.eyes=[]; for(const z of [-0.27,0.27]){ const eg=new THREE.Group(); eg.position.set(0.48,0.15,z); hd.add(eg); box(eg,0.08,0.24,0.22,e,0,0,0); box(eg,0.09,0.12,0.1,0x111111,0.01,-0.02,0.02); box(eg,0.09,0.07,0.06,0xffffff,0.02,0.06,-0.04); t.eyes.push(eg); }
+  for(const z of [-1,1]){ box(hd,0.05,0.03,0.6,0xffffff,0.7,-0.1,z*0.5); box(hd,0.05,0.03,0.55,0xffffff,0.7,-0.18,z*0.48); }   // long whiskers
+  t.tongue=box(hd,0.1,0.12,0.14,0xff7b9c,0.78,-0.36,0); t.tongue.visible=false;
+  t.legs=[]; for(const [x,z] of [[0.6,-0.28],[0.6,0.28],[-0.6,-0.28],[-0.6,0.28]]){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.26,0.3,0.26,c,0,-0.15,0); box(p,0.4,0.1,0.42,dark,0.02,-0.33,0); b.add(p); t.legs.push(p); }   // short legs, webbed feet
+  t.tail=new THREE.Group(); t.tail.position.set(-0.9,0.55,0); box(t.tail,0.9,0.28,0.5,c,-0.45,0,0); box(t.tail,0.6,0.2,0.32,c,-1.15,0,0); t.tail.rotation.z=0.1; b.add(t.tail);   // thick flat tail
+  t.hatG=new THREE.Group(); t.hatG.position.set(0,0.42,0); hd.add(t.hatG); t.h=1.75; }
+const SPECIES={
+  cat:    { build:buildCat,     body:'orange', tail:{base:0.5,amp:0.25,speed:3,wagX:0.3},  say:{meow:['meow','mrrp','meow~','MEOW','mrow?','prrr'], hiss:['hsss','HISS','>:3','hss'], purr:['prrr','💕',':3'] } },
+  dog:    { build:buildDog,     body:'golden', pant:true, tail:{base:0.9,amp:0.35,speed:9,wagX:0.9}, say:{meow:['woof','arf','bork','awoo','wuf?'], hiss:['grrr','GRRR','bark!'], purr:['*wag wag*','💕','happy!'] } },
+  raccoon:{ build:buildRaccoon, body:'gray',   tail:{base:1.0,amp:0.15,speed:2.5,wagX:0.2}, say:{meow:['chitter','churr','trill','chrrr?'], hiss:['HISS','screech','grr'], purr:['churr','💕','trill~'] } },
+  otter:  { build:buildOtter,   body:'brown',  tail:{base:0.1,amp:0.12,speed:2,wagX:0.5},  say:{meow:['squeak','chirp','eep','squee'], hiss:['hiss','huff','HUFF'], purr:['chirp~','💕','eep'] } },
+};
+const SPAWN_CMDS={cat:'cat',kitty:'cat',dog:'dog',pup:'dog',puppy:'dog',doggo:'dog',raccoon:'raccoon',trashpanda:'raccoon',otter:'otter'};
+let SPECIES_MODE='cat';   // what a spawn command produces: one species for the whole channel, or 'mixed' (each command spawns its own)
+const voice=(c,k)=>{ const S=SPECIES[c.look.species]||SPECIES.cat; return pick(S.say[k]||SPECIES.cat.say[k]); };
+
 // ---------- cat ----------
 class Cat {
   constructor(key, name, look){
     this.key = key; this.name = name; this.last = performance.now();
-    this.look = Object.assign({body:'orange', eyes:'green', pattern:'solid', hat:'none', size:'adult'}, look);
+    this.look = Object.assign({species:'cat', body:'orange', eyes:'green', pattern:'solid', hat:'none', size:'adult'}, look);
     this.g = new THREE.Group();
     const sp=freePoint(rnd(-XMAX,XMAX), rnd(ZMIN,ZMAX)); this.g.position.set(sp.x, 0, sp.z);
     scene.add(this.g);
@@ -55,39 +131,15 @@ class Cat {
   }
   build(){
     while(this.g.children.length) this.g.remove(this.g.children[0]);
-    const L = this.look, c = parseColor(L.body,COLORS) ?? COLORS.orange, e = parseColor(L.eyes,EYES) ?? EYES.green;
+    const L = this.look, S = SPECIES[L.species]||SPECIES.cat, c = parseColor(L.body,COLORS) ?? COLORS[S.body], e = parseColor(L.eyes,EYES) ?? EYES.green;
     const g = this.g, dark = darken(c, 0.72), white=0xf5f1ea;
     this.body = new THREE.Group(); g.add(this.body);
     const sz=SIZES[L.size]||SIZES.adult; this.baseScale=new THREE.Vector3(0.72*sz[0],0.72*sz[1],0.72*sz[2]);
     const b = this.body; b.scale.copy(this.baseScale);   // chibi + small
-    this.h = 2.05*sz[1];                                  // label height
-    box(b,1.1,0.75,0.8,c,0,0.7,0);                       // stubby torso
-    if(L.size==='fat'||L.size==='chonk') box(b,1.0,0.55,0.9,c,0.05,0.42,0);   // belly
-    // head group pivots at the neck-ish centre (0.55,1.55,0); face, ears and hat are its children so they move with it
-    const hd = this.head = new THREE.Group(); hd.position.set(0.55,1.55,0); b.add(hd);
-    box(hd,1.35,1.2,1.25,c,0,0,0);                        // big head
-    // ears: short, wide, pink inside
-    this.ears=[ box(hd,0.45,0.42,0.22,c,-0.25,0.75,-0.42), box(hd,0.45,0.42,0.22,c,-0.25,0.75,0.42) ];
-    box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,-0.42); box(hd,0.25,0.24,0.16,0xffb3c6,-0.2,0.72,0.42);
-    // big eyes with highlight
-    this.eyes=[]; for(const z of [-0.33,0.33]){ const eg=new THREE.Group(); eg.position.set(0.68,0.05,z); hd.add(eg);
-      box(eg,0.08,0.4,0.36,e,0,0,0); box(eg,0.1,0.14,0.12,0x111111,0.01,-0.02,0.03); box(eg,0.12,0.1,0.08,0xffffff,0.02,0.1,-0.08); this.eyes.push(eg); }
-    box(hd,0.1,0.1,0.16,0xff8fa3,0.68,-0.25,0);              // nose
-    box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,-0.1); box(hd,0.06,0.06,0.16,0x7a4b2a,0.68,-0.35,0.1); // w mouth
-    this.tongue=box(hd,0.1,0.14,0.14,0xff7b9c,0.7,-0.47,0); this.tongue.visible=false;               // out while grooming / drinking
-    box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,-0.5); box(hd,0.06,0.16,0.28,0xffa0b8,0.68,-0.27,0.5); // blush
-    box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,0.5); box(hd,0.06,0.04,0.42,0xffffff,0.69,-0.23,-0.5);   // whiskers
-    if(L.pattern==='tuxedo'){ box(b,0.2,0.4,0.45,white,0.5,0.6,0); box(hd,0.1,0.5,0.55,white,0.67,-0.4,0); }
-    if(L.pattern==='tabby'){ for(let i=0;i<2;i++) box(b,0.16,0.12,0.85,dark,-0.35+i*0.4,1.1,0); box(hd,0.55,0.12,0.6,dark,0,0.62,0); box(hd,0.16,0.14,0.3,dark,0,0.61,-0.5); box(hd,0.16,0.14,0.3,dark,0,0.61,0.5); }
-    if(L.pattern==='calico'){ box(b,0.5,0.35,0.85,0xf28c38,-0.25,0.95,0); box(hd,0.6,0.5,0.55,0x2b2b33,-0.1,0.45,-0.45); box(hd,0.4,0.3,0.3,0xf28c38,0.35,0.35,0.6); }
-    // stubby legs (pivot at top)
-    this.legs=[]; const lp=[[0.35,-0.25],[0.35,0.25],[-0.35,-0.25],[-0.35,0.25]];
-    for(const [x,z] of lp){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.32,0.4,0.32,c,0,-0.2,0); box(p,0.33,0.12,0.34,L.pattern==='tuxedo'?white:c,0,-0.35,0); b.add(p); this.legs.push(p); }
-    // little tail
-    this.tail = new THREE.Group(); this.tail.position.set(-0.55,0.85,0); box(this.tail,0.22,0.7,0.22,c,-0.05,0.3,0); box(this.tail,0.24,0.24,0.24,L.pattern==='tabby'?dark:c,-0.05,0.72,0);
-    this.tail.rotation.z = 0.6; b.add(this.tail);
-    // hat
-    const h=new THREE.Group(); h.position.set(0,0.6,0); hd.add(h); const hat=this.raceCrown?'crown':L.hat;
+    S.build(this, L, c, e, dark, white);                  // species sets head/headPos/ears/eyes/legs/tail/tongue/hatG/h
+    this.h = this.h*sz[1];                                // label height
+    // hat (shared)
+    const h=this.hatG, hat=this.raceCrown?'crown':L.hat;
     if(hat==='crown'){ box(h,0.8,0.2,0.8,0xffd23f,0,0.1,0); for(const [x,z] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]) box(h,0.18,0.3,0.18,0xffd23f,x,0.3,z); box(h,0.16,0.16,0.16,0xff4d6d,0.42,0.2,0); }
     if(hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
     if(hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
@@ -115,7 +167,7 @@ class Cat {
   jump(){ if(this.jumpT<0) this.jumpT=0; }
   play(name,dur,keepProp){ if(this.anim) this.resetAnim(); if(!keepProp&&!this.onProp&&!PROP_ANIMS.includes(name)) this.releaseProp(); this.target=null; if(this.state!=='idle') this.setState('idle'); this.timer=dur+1; this.anim={name,dur,t:0}; }
   resetAnim(){ const b=this.body; this.anim=null; b.rotation.x=0; b.rotation.z=0; b.position.z=0; b.position.x=0; b.scale.copy(this.baseScale); this.tongue.visible=false; this.tongue.scale.y=1; b.position.y=0; this.g.position.y=this.elev; this.tail.rotation.x=0;
-    for(const l of this.legs){ l.rotation.x=0; l.rotation.z=0; l.position.y=0.4; } this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.set(0,this.head.rotation.y,0); this.head.position.set(0.55,1.55,0); for(const e of this.eyes) e.scale.setScalar(1); }
+    for(const l of this.legs){ l.rotation.x=0; l.rotation.z=0; l.position.y=0.4; } this.ears[0].rotation.x=this.ears[1].rotation.x=0; this.head.rotation.set(0,this.head.rotation.y,0); this.head.position.copy(this.headPos); for(const e of this.eyes) e.scale.setScalar(1); }
   spin(){ this.spinT=0; }
   wave(){ this.waveT=0; this.setState('idle'); this.timer=2; }
   update(dt, now){
@@ -125,8 +177,9 @@ class Cat {
     const blink = (Math.sin(now*1.3+this.g.position.x*3)>0.985)||s==='sleep';
     for(const e of this.eyes) e.scale.y = blink?0.15:1;
     // tail idle wag
-    this.tail.rotation.z = 0.5 + Math.sin(now*3+this.g.position.x)*0.25;
-    this.tail.rotation.x = Math.sin(now*2.2)*0.3;
+    const SP=SPECIES[this.look.species]||SPECIES.cat;
+    this.tail.rotation.z = SP.tail.base + Math.sin(now*SP.tail.speed+this.g.position.x)*SP.tail.amp;
+    this.tail.rotation.x = Math.sin(now*(SP.tail.speed*0.7))*SP.tail.wagX;
     // lying states
     const posed = s==='sleep' && this.sleepStyle!=='loaf' && !this.inBox && !this.anim;   // side / back sleepers
     const lying = s==='loaf' || this.inBox || (s==='sleep' && !posed);
@@ -137,7 +190,7 @@ class Cat {
     for(const l of this.legs) l.visible = !lying;
     if(posed){ const br=Math.sin(now*1.5+this.ph)*0.03;
       if(this.sleepStyle==='side'){ b.rotation.x=1.35; b.position.y=0.22+br; this.head.rotation.z=0.25; this.head.rotation.y=0; for(let i=0;i<4;i++) this.legs[i].rotation.z=(i%2?0.45:-0.5)+Math.sin(now*0.7+i)*0.08; }
-      else { b.rotation.x=Math.PI; b.position.y=0.95+br; this.head.position.set(0.9,0.6,0); this.head.rotation.set(0,0,-0.9); for(let i=0;i<4;i++) this.legs[i].rotation.z=Math.sin(now*0.8+i)*0.25+(i>1?0.3:-0.3); } }
+      else { b.rotation.x=Math.PI; b.position.y=0.95+br; this.head.position.set(this.headPos.x+0.35,this.headPos.y-0.95,0); this.head.rotation.set(0,0,-0.9); for(let i=0;i<4;i++) this.legs[i].rotation.z=Math.sin(now*0.8+i)*0.25+(i>1?0.3:-0.3); } }
 
     if(this.mirror){   // companion page: position/state come from the overlay over the wire
       const n=this.net; if(n){ const k=Math.min(1,dt*8); g.position.x+=(n.x-g.position.x)*k; g.position.z+=(n.z-g.position.z)*k; this.facing=n.f; }
@@ -166,19 +219,20 @@ class Cat {
     } else {
       for(const l of this.legs) l.rotation.z *= 0.8;
       if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle();
-        if(!PLAY && !this.anim && Math.random()<dt*0.02){ if(this.hunger>0.85) this.say(pick(['😾','hungry…','grr','feed me'])); else if(this.hunger<0.15) this.say(pick(['💕','prrr','😌'])); }   // mood shows
+        if(!PLAY && !this.anim && Math.random()<dt*0.02){ if(this.hunger>0.85) this.say(pick(['😾','hungry…','grr','feed me'])); else if(this.hunger<0.15) this.say(voice(this,'purr')); }   // mood shows
         if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ this.look={x:o.g.position.x,z:o.g.position.z,until:now+rnd(1.2,2.5)}; if(Math.abs(normA(Math.atan2(-(o.g.position.z-g.position.z), o.g.position.x-g.position.x)-this.facing))>1.2) faceAt(this,o); const aff=affinity(this,o);
-          if((aff<-0.55 || (this.T.hiss>2 && aff<0.2)) && Math.random()<0.35*this.T.hiss){ this.play('arch',0.8); this.say(pick(['hss','😾','go away'])); } else if(aff>0.55 && Math.random()<0.2*this.T.greet) this.say(pick(['💕',':3','prrr'])); } } } }
+          if((aff<-0.55 || (this.T.hiss>2 && aff<0.2)) && Math.random()<0.35*this.T.hiss){ this.play('arch',0.8); this.say(voice(this,'hiss')); } else if(aff>0.55 && Math.random()<0.2*this.T.greet) this.say(voice(this,'purr')); } } } }
       if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; this.head.rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       else if(!lying) b.rotation.z *= 0.8;
       if(s==='loaf'){ this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       if(s==='sleep'){ this.timer-=dt; if(Math.floor(this.t)!==Math.floor(this.t-dt) && Math.floor(this.t)%2===0) this.say('z'.repeat(1+Math.floor(this.t)%3)); if(this.timer<=0){ this.setState('idle'); this.play('stretch',1.5); } }
-      if(s==='groom'){ const lick=Math.abs(Math.sin(now*10)); this.head.rotation.z = -0.25+Math.sin(now*10)*0.15; this.head.position.y=1.45+lick*0.06;   // head down, tongue out, paw up to the face
+      if(s==='groom'){ const lick=Math.abs(Math.sin(now*10)); this.head.rotation.z = -0.25+Math.sin(now*10)*0.15; this.head.position.y=this.headPos.y-0.1+lick*0.06;   // head down, tongue out, paw up to the face
         this.tongue.visible=true; this.tongue.position.y=-0.47-lick*0.1; this.tongue.scale.y=0.6+lick*0.8;
         this.legs[0].rotation.z=-1.9+Math.sin(now*10)*0.15; this.legs[0].position.y=0.55;
-        this.timer-=dt; if(this.timer<=0){ this.head.rotation.z=0; this.head.position.y=1.55; this.tongue.visible=false; this.legs[0].position.y=0.4; this.setState('idle'); this.timer=2; } }
+        this.timer-=dt; if(this.timer<=0){ this.head.rotation.z=0; this.head.position.y=this.headPos.y; this.tongue.visible=false; this.legs[0].position.y=0.4; this.setState('idle'); this.timer=2; } }
     }
     // facing (smooth turn)
+    if(SP.pant && !this.anim && !posed && s!=='sleep' && !this.inBox) this.tongue.visible = Math.sin(now*0.35+this.ph)>0.35;   // dogs pant
     // neck: idle wander, look at whatever caught its eye, bob while walking — only when nothing else is driving the head
     if(!this.anim && !posed && s!=='groom' && !this.inBox){
       let yaw=0.22*Math.sin(now*0.6+this.ph)+0.12*Math.sin(now*1.7+this.ph*2), pitch=0.05*Math.sin(now*0.9+this.ph);
@@ -201,16 +255,16 @@ class Cat {
                        else { const q=(p-0.4)/0.6; g.position.y=this.elev+Math.sin(q*Math.PI)*0.9; g.position.x=clamp(g.position.x+Math.cos(this.facing)*dt*4.5,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*dt*4.5,ZMIN,ZMAX); b.rotation.z=-0.25*Math.sin(q*Math.PI); this.legs[0].rotation.z=this.legs[1].rotation.z=-1.0*Math.sin(q*Math.PI); } break;
         case 'hop': { const f=A.from,t=A.to; g.position.x=f.x+(t.x-f.x)*p; g.position.z=f.z+(t.z-f.z)*p; g.position.y=f.y+(t.y-f.y)*p+Math.sin(p*Math.PI)*0.9; b.rotation.z=-0.3*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.1*s1; this.legs[2].rotation.z=this.legs[3].rotation.z=0.8*s1;
           if(p>=1){ this.elev=t.y; this.inBox=t.into; } break; }
-        case 'lickfoot': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-1.1*env; this.head.rotation.z=-0.55*env; this.head.position.x=0.55-0.25*env; this.legs[2].rotation.z=1.5*env; this.legs[2].rotation.x=-0.6*env; b.rotation.x=-0.25*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
-        case 'lickbutt': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-2.3*env; this.head.rotation.z=-0.4*env; this.head.position.x=0.55-0.45*env; this.legs[3].rotation.x=1.6*env; b.rotation.x=0.55*env; b.position.y=0.05*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
+        case 'lickfoot': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-1.1*env; this.head.rotation.z=-0.55*env; this.head.position.x=this.headPos.x-0.25*env; this.legs[2].rotation.z=1.5*env; this.legs[2].rotation.x=-0.6*env; b.rotation.x=-0.25*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
+        case 'lickbutt': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); this.head.rotation.y=-2.3*env; this.head.rotation.z=-0.4*env; this.head.position.x=this.headPos.x-0.45*env; this.legs[3].rotation.x=1.6*env; b.rotation.x=0.55*env; b.position.y=0.05*env; this.tongue.visible=env>0.6; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*12)); break; }
         case 'swipe': { const pop=Math.min(1,p*4); b.position.y=-0.85+1.0*Math.sin(pop*Math.PI/2)-0.3*Math.max(0,(p-0.7)/0.3); this.legs[0].visible=true; this.legs[0].rotation.z=-2.1*Math.min(1,p*3); this.legs[0].rotation.x=Math.sin(A.t*22)*0.9*(p<0.8?1:0); this.head.rotation.z=-0.15; for(const e of this.eyes) e.scale.setScalar(1.3); break; }   // pop up out of the box and bat
-        case 'crouch': { const low=Math.min(1,p*3); b.position.y=-0.24*low; b.rotation.z=0.1*low; this.head.position.y=1.55-0.12*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);
+        case 'crouch': { const low=Math.min(1,p*3); b.position.y=-0.24*low; b.rotation.z=0.1*low; this.head.position.y=this.headPos.y-0.12*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);
           this.tail.rotation.z=0.2+Math.sin(A.t*14)*0.15; b.rotation.x=Math.sin(A.t*9)*0.05*low;   // butt wiggle
           const t=this.sneakTarget; if(t&&!t.dead){ this.head.rotation.y=clamp(normA(Math.atan2(-(t.g.position.z-g.position.z), t.g.position.x-g.position.x)-this.facing),-1.2,1.2); if(Math.hypot(t.g.position.x-g.position.x,t.g.position.z-g.position.z)<(this.elev>0?4:2.9)) A.t=A.dur; }
           if(p>=1&&this.sneakTarget) setTimeout(()=>sneakPounce(this),0); break; }
         case 'tackle': b.position.x=1.1*s1; b.rotation.z=-0.4*s1; this.legs[0].rotation.z=this.legs[1].rotation.z=-1.4*s1; this.head.rotation.z=-0.2*s1; break;   // lunge along facing
         case 'knocked': { const env=p<0.3?p/0.3:1-(p-0.3)/0.7; b.rotation.x=1.25*env; b.position.y=0.3*Math.sin(Math.min(1,p*2)*Math.PI); b.position.x=-0.8*s1; this.ears[0].rotation.x=this.ears[1].rotation.x=-0.6*env; for(const e of this.eyes) e.scale.setScalar(1+0.5*env); break; }   // shoved onto its side
-        case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=1.55-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
+        case 'stalk': { const low=Math.min(1,p*4,(1-p)*6); b.position.y=-0.24*low; b.rotation.z=0.12*low; this.head.position.y=this.headPos.y-0.15*low; for(const e of this.eyes) e.scale.setScalar(1+0.35*low);   // creep low and slow
           this.tail.rotation.z=0.2+Math.sin(A.t*18)*0.12; this.tail.rotation.x=Math.sin(A.t*18)*0.25; const st=dt*0.9*low; g.position.x=clamp(g.position.x+Math.cos(this.facing)*st,-XMAX,XMAX); g.position.z=clamp(g.position.z-Math.sin(this.facing)*st,ZMIN,ZMAX);
           for(let i=0;i<4;i++) this.legs[i].rotation.z=Math.sin(A.t*4+(i%2?Math.PI:0)+(i>1?Math.PI/2:0))*0.35*low; break; }
         case 'arch': b.scale.y=this.baseScale.y*(1+0.32*s1); b.position.y=0.04*s1; this.tail.rotation.z=0.6-0.75*s1; for(const e of this.eyes) e.scale.setScalar(1+0.4*s1); break;
@@ -218,8 +272,8 @@ class Cat {
         case 'nuzzle': b.rotation.z=-0.35*Math.abs(Math.sin(A.t*5))*(1-p*0.5); b.position.y=-0.06*s1; break;
         case 'twitch': this.ears[p<0.5?0:1].rotation.x=Math.sin(A.t*35)*0.35*(1-p); break;
         case 'peek': this.head.rotation.z=0.25*s1; break;
-        case 'eat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=1.55-0.42*env-0.05*Math.abs(Math.sin(A.t*8))*env; hd.rotation.z=-0.35*env; this.tail.rotation.z=0.6+0.6*env; break; }
-        case 'drink': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=1.55-0.4*env-0.03*Math.abs(Math.sin(A.t*16))*env; hd.rotation.z=-0.3*env; this.tongue.visible=env>0.5; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*16)); break; }
+        case 'eat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=this.headPos.y-0.42*env-0.05*Math.abs(Math.sin(A.t*8))*env; hd.rotation.z=-0.35*env; this.tail.rotation.z=0.6+0.6*env; break; }
+        case 'drink': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)), hd=this.head; hd.position.y=this.headPos.y-0.4*env-0.03*Math.abs(Math.sin(A.t*16))*env; hd.rotation.z=-0.3*env; this.tongue.visible=env>0.5; this.tongue.scale.y=0.5+Math.abs(Math.sin(A.t*16)); break; }
         case 'scratch': { const env=Math.max(0,Math.min(1,p*4,(1-p)*4)); b.rotation.z=0.8*env; b.position.y=0.32*env; this.legs[0].rotation.z=(-1.7+Math.sin(A.t*14)*0.4)*env; this.legs[1].rotation.z=(-1.7-Math.sin(A.t*14)*0.4)*env; break; }
         case 'bat': { const env=Math.max(0,Math.min(1,p*5,(1-p)*5)); this.legs[0].rotation.z=-1.3*Math.abs(Math.sin(A.t*10))*env; b.rotation.z=-0.1*env; break; }
       }
@@ -336,21 +390,23 @@ function handleChat(user, msg, key, away){
   if(cat) cat.last=performance.now();
   if(cat && cat.afk){ cat.setAfk(false); cat.say(pick(['back!','o/','👋'])); }
   const welcome = away>20*3600e3;   // long time no see — greeted after the command's own bubble, also when the cat is respawning via !cat
-  if(cmd==='cat'){
-    const look = cat ? {...cat.look} : {};
+  if(SPAWN_CMDS[cmd]){
+    const species = SPECIES_MODE==='mixed' ? SPAWN_CMDS[cmd] : (SPECIES[SPECIES_MODE]?SPECIES_MODE:'cat');
+    const look = cat ? {...cat.look} : {species};
+    if(SPECIES_MODE==='mixed') look.species=species;
     for(let i=0;i<parts.length;i++){ const p=parts[i];
       if(p==='eyes' && parts[i+1]){ look.eyes=parts[++i]; continue; }
       if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(SIZES[p]) look.size=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
-    if(!cat){ cat=spawnCat(key, user, look); note='spawned'; crownCotd(cat); }
+    if(!cat){ look.body=look.body||SPECIES[look.species].body; cat=spawnCat(key, user, look); note='spawned'; crownCotd(cat); }
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
     net.send({type:'cat', key, name:user, look:cat.look});
-  } else if(!cat){ note='no cat yet — use !cat'; }
+  } else if(!cat){ note='no cat yet — use !'+(SPECIES_MODE==='mixed'?'cat / !dog / !raccoon / !otter':(SPECIES[SPECIES_MODE]?SPECIES_MODE:'cat')); }
   else if(cmd==='join') note=race.join(cat);
   else if(cmd==='name'){ const n=raw.join(' ').replace(/[<>]/g,'').trim().slice(0,20); cat.setName(n||user); net.send({type:'cat', key, name:cat.name, look:cat.look}); note='named '+cat.name; }
   else if(cmd==='afk'){ cat.setAfk(true); note='afk'; }
   else if(cmd==='follow'){ const who=(parts[0]||'').replace(/^@/,''); const other=who?findCat(who):null; if(!who){ cat.following=null; note='stopped following'; } else if(!other||other===cat) note='who? try !follow @name'; else { cat.following={cat:other, until:performance.now()+60000}; cat.say(pick(['👀','coming!','wait up'])); cat.giveUp(); cat.timer=0.2; note='following '+other.name; } }
   else if(cmd==='lick') cat.play(pick(['lickfoot','lickbutt']),1.9);
-  else if(cmd==='meow') cat.say(pick(['meow','mrrp','meow~','MEOW','mrow?','prrr']));
+  else if(['meow','bark','woof','chitter','squeak','speak'].includes(cmd)) cat.say(voice(cat,'meow'));
   else if(cmd==='jump') cat.jump();
   else if(cmd==='spin') cat.spin();
   else if(cmd==='sleep'){ cat.setState('sleep'); cat.timer=8; }
@@ -364,7 +420,7 @@ function handleChat(user, msg, key, away){
   else if(cmd==='sneak'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; note=sneak(cat, t&&t!==cat?t:null)?'sneaking':'nobody to sneak up on'; }
   else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
   else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else wrestle(cat,o,false); }
-  else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(pick(['hsss','HISS','>:3'])); }
+  else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(voice(cat,'hiss')); }
   else if(cmd==='shake') cat.play('shake',0.7);
   else if(cmd==='pet'||cmd==='boop'||cmd==='hug'){
     const who=(parts[0]||'').replace(/^@/,''); const other=findCat(who);
@@ -465,7 +521,7 @@ const isFriend=(a,b)=>affinity(a,b)>0.55, isRival=(a,b)=>affinity(a,b)<-0.55;
 function near(me,r,filter){ let best=null,bd=r; for(const c of cats.values()){ if(c===me||c.dead||(filter&&!filter(c))) continue; const d=Math.hypot(c.g.position.x-me.g.position.x,c.g.position.z-me.g.position.z); if(d<bd){ bd=d; best=c; } } return best; }
 const faceAt=(me,o)=>{ me.facing=Math.atan2(-(o.g.position.z-me.g.position.z), o.g.position.x-me.g.position.x); };
 function greet(a,b){   // friends meeting: nose boop
-  a.noCollide=b.noCollide=true; a.pal=b; faceAt(a,b); faceAt(b,a); a.play('nuzzle',1.2,false); b.play('nuzzle',1.2,false); a.say(pick(['💕',':3','hi '+b.name])); setTimeout(()=>{ if(!b.dead) b.say(pick(['💕','prrr','hi!'])); },350);
+  a.noCollide=b.noCollide=true; a.pal=b; faceAt(a,b); faceAt(b,a); a.play('nuzzle',1.2,false); b.play('nuzzle',1.2,false); a.say(pick(['💕',':3','hi '+b.name])); setTimeout(()=>{ if(!b.dead) b.say(voice(b,'purr')); },350);
   setTimeout(()=>{ a.noCollide=b.noCollide=false; a.pal=null; },1600);
 }
 function ambush(a,v){   // a is hiding in a box, v just walked past
@@ -540,7 +596,7 @@ function wrestle(a,b,full){
 // newcomer a arrives at bowl/water p while b is using it: hiss-off, then one of them eats
 function squabble(a,b,p){
   a.facing=Math.atan2(-(b.g.position.z-a.g.position.z), b.g.position.x-a.g.position.x); b.facing=a.facing+Math.PI;
-  a.play('arch',1.0,true); b.play('arch',1.0,true); a.say(pick(['hsss','MINE','>:3'])); setTimeout(()=>{ if(!b.dead) b.say(pick(['HISS','no!','>:('])); },250);
+  a.play('arch',1.0,true); b.play('arch',1.0,true); a.say(Math.random()<0.5?voice(a,'hiss'):'MINE'); setTimeout(()=>{ if(!b.dead) b.say(Math.random()<0.5?voice(b,'hiss'):'no!'); },250);
   setTimeout(()=>{ if(a.dead||b.dead||!p.mesh.parent) return;   // arch ended: both reservations were dropped by the anim reset
     const winner=Math.random()<(isRival(a,b)?0.6:0.5)?a:b, loser=winner===a?b:a;   // the pushy one usually wins
     loser.say(pick(['😾','fine.','hmph'])); loser.walkTo(loser.g.position.x+rnd(-4,4), loser.g.position.z+rnd(-3,3), 3);
@@ -601,7 +657,7 @@ function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&
   document.body.classList.toggle('env', name!=='none');
   if(name==='none') return;
   const g=envGroup=new THREE.Group(); scene.add(g);
-  const W=XMAX+3.5, ZB=ZMIN-3.5, ZF=ZMAX+4, H=10;
+  const W=XMAX+3.5, ZB=ZMIN-3.5, ZF=ZMAX+12, H=10;   // floor runs well past the camera's bottom edge
   const walls=c=>{ box(g,2*W,H,0.3,c,0,H/2,ZB); box(g,0.3,H,ZF-ZB,darken(c,0.88),-W,H/2,(ZB+ZF)/2); box(g,0.3,H,ZF-ZB,darken(c,0.88),W,H/2,(ZB+ZF)/2); box(g,2*W,0.25,0.35,darken(c,0.7),0,0.12,ZB+0.05); };
   const floor=c=>box(g,2*W,0.2,ZF-ZB,c,0,-0.1,(ZB+ZF)/2);
   const win=(x,y=5.2)=>{ box(g,3.4,2.8,0.1,0x9fd8ff,x,y,ZB+0.2); box(g,3.8,0.22,0.2,0xffffff,x,y+1.5,ZB+0.25); box(g,3.8,0.22,0.2,0xffffff,x,y-1.5,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x-1.8,y,ZB+0.25); box(g,0.22,3.2,0.2,0xffffff,x+1.8,y,ZB+0.25); box(g,0.15,2.8,0.15,0xffffff,x,y,ZB+0.27); box(g,0.9,0.9,0.4,0xffffff,x+0.9,y+0.6,ZB+0.3); };
@@ -685,13 +741,13 @@ rebuildZones();
 // overlay streams compact cat state to the server while anyone is watching; the companion mirrors it and sends clicks back as pokes
 let watchers=0, lastState='';
 if(!PLAY) setInterval(()=>{ if(!watchers) return;
-  const payload=JSON.stringify({type:'state', cats:[...cats.values()].map(c=>[c.key,c.name,+c.g.position.x.toFixed(2),+c.g.position.z.toFixed(2),+c.facing.toFixed(2),c.state,c.bubbleEl?c.bubbleEl.textContent:'',c.g.position.y>0.05?1:0,`${c.look.body}/${c.look.eyes}/${c.look.pattern}/${c.look.hat}`])});
+  const payload=JSON.stringify({type:'state', cats:[...cats.values()].map(c=>[c.key,c.name,+c.g.position.x.toFixed(2),+c.g.position.z.toFixed(2),+c.facing.toFixed(2),c.state,c.bubbleEl?c.bubbleEl.textContent:'',c.g.position.y>0.05?1:0,`${c.look.body}/${c.look.eyes}/${c.look.pattern}/${c.look.hat}/${c.look.size||'adult'}/${c.look.species||'cat'}`])});
   if(payload===lastState) return; lastState=payload; net.send(JSON.parse(payload)); }, 125);
 function applyState(m){
   const seen=new Set();
   for(const [key,name,x,z,f,state,bubble,jumping,lk] of m.cats){ seen.add(key); let c=cats.get(key);
-    if(!c){ const [body,eyes,pattern,hat]=lk.split('/'); c=spawnCat(key,name,{body,eyes,pattern,hat},true); c.mirror=true; c.g.position.set(x,0,z); c.g.rotation.y=f; c.lk=lk; }
-    else if(c.lk!==lk){ const [body,eyes,pattern,hat]=lk.split('/'); c.look={body,eyes,pattern,hat}; c.build(); c.lk=lk; }
+    if(!c){ const [body,eyes,pattern,hat,size,species]=lk.split('/'); c=spawnCat(key,name,{body,eyes,pattern,hat,size,species},true); c.mirror=true; c.g.position.set(x,0,z); c.g.rotation.y=f; c.lk=lk; }
+    else if(c.lk!==lk){ const [body,eyes,pattern,hat,size,species]=lk.split('/'); c.look={body,eyes,pattern,hat,size,species}; c.build(); c.lk=lk; }
     if(Math.hypot(c.g.position.x-x,c.g.position.z-z)>4) c.g.position.set(x,0,z);   // teleport → snap
     c.net={x,z,f}; c.moving=state==='walk'; if(c.state!==state) c.setState(state);
     if(bubble && bubble!==c.lastBubble) c.say(bubble); c.lastBubble=bubble;
@@ -721,6 +777,7 @@ let booted=false;
 function applyInit(m){
   if(m.maxCats) MAX_CATS=m.maxCats;
   if(!envLocked && m.env) setEnv(m.env);
+  if(m.species) SPECIES_MODE=m.species;
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(booted){   // reconnect (server restart, wifi blip): keep everything that's on stage, only add what we're missing

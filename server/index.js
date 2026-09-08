@@ -31,11 +31,14 @@ const DEFAULTS = { predictions: +env('PREDICTIONS', 1), cooldownMs: +env('COOLDO
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
 cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
+const SPECIES_MODES = ['cat', 'dog', 'raccoon', 'otter', 'mixed'];
+cfg.species = SPECIES_MODES.includes(cfg.species) ? cfg.species : env('SPECIES', 'cat');
 function setSettings(patch) {
   for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
   if (ENVS.includes(patch.env)) cfg.env = patch.env;
+  if (SPECIES_MODES.includes(patch.species)) cfg.species = patch.species;
   db.set('settings', cfg);
-  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env };
+  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species };
   broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
@@ -60,6 +63,7 @@ function initPayload() {
     type: 'init',
     cotd: catOfTheDay(),
     env: cfg.env,
+    species: cfg.species,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),

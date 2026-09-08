@@ -29,6 +29,7 @@
       <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100" style="width:80px"></label>
       <label>respawn h <input type="number" id="s-respawnHours" min="0" step="1" style="width:64px"></label>
       <label><input type="checkbox" id="s-predictions"> race predictions</label>
+      <label>animals <select id="s-species"><option value="cat">cats</option><option value="dog">dogs</option><option value="raccoon">raccoons</option><option value="otter">otters</option><option value="mixed">mixed (each chatter picks)</option></select></label>
       <label>room <select id="s-env"><option value="none">none (transparent)</option><option value="bedroom">bedroom</option><option value="kitchen">kitchen</option><option value="living">living room</option><option value="garden">garden</option></select></label>
       <button id="savesettings">Save</button>
     </div>
@@ -137,9 +138,9 @@
   $('#playurl').textContent=location.origin+'/play';
   if(KEY) for(const c of document.querySelectorAll('.hint code')) if(c.textContent.includes('/api/')) c.textContent+=(c.textContent.includes('?')?'&':'?')+'key=…';
   const SKEYS=['maxCats','cooldownMs','respawnHours'];
-  const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; $('#s-predictions').checked=!!s.predictions; $('#s-env').value=s.env||'none'; };
+  const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; $('#s-predictions').checked=!!s.predictions; $('#s-env').value=s.env||'none'; $('#s-species').value=s.species||'cat'; };
   fetch('/api/settings').then(r=>r.json()).then(showSettings);
-  $('#savesettings').onclick=async()=>{ const body={predictions:$('#s-predictions').checked?1:0, env:$('#s-env').value}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };
+  $('#savesettings').onclick=async()=>{ const body={predictions:$('#s-predictions').checked?1:0, env:$('#s-env').value, species:$('#s-species').value}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };
 </script>
 </body>
 </html>

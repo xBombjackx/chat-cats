@@ -22,7 +22,7 @@
       else if(m.type==='event' && events[m.name]) events[m.name](m);
       else if(m.type==='twitch') handleTwitch(m);
       else if(m.type==='cooldown'){ const c=cats.get(m.key); if(c) c.say('⏳'); }
-      else if(m.type==='config'){ if(m.maxCats) MAX_CATS=m.maxCats; if(m.env&&!envLocked) setEnv(m.env); }
+      else if(m.type==='config'){ if(m.maxCats) MAX_CATS=m.maxCats; if(m.env&&!envLocked) setEnv(m.env); if(m.species) SPECIES_MODE=m.species; }
       else if(m.type==='watchers') watchers=m.n;
       else if(m.type==='poke') handlePoke(m.x,m.z);
     };

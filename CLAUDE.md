@@ -8,6 +8,7 @@ Stream overlay: voxel cats controlled by Twitch/Kick chat. Owner streams on Twit
 ## Conventions
 - Cats face +x at heading 0; `facing` is a radian heading, `-Math.PI/2` faces the camera. `rotation.y = θ` maps +x to `(cos θ, 0, -sin θ)`.
 - All one-shot animations go through `Cat.play(name, dur)` — one `case` in the switch in `update()`, plus a command line in `handleChat`. Reset any transform you touch in the `p>=1` block.
+- Species: `SPECIES[name] = {build, body, tail, say}`. A builder must create the full rig (`head` at `headPos`, `ears[2]`, `eyes[2]` groups, `legs[4]` pivot y=0.4, `tail`, `tongue`, `hatG`, `h`). Animations reference `this.headPos`, never literal head coordinates. Voice lines go through `voice(cat,kind)`. `SPECIES_MODE` (server setting) decides what spawn commands make.
 - Cat scale is `this.baseScale` (0.72 × the size multiplier from `SIZES`); never hardcode 0.72 in animations. Body parts are children of `this.body`; face, ears, hat and tongue are children of `this.head` (pivot at 0.55,1.55,0) so head animations carry them.
 - Interrupting an animation goes through `play()`, which calls `resetAnim()` first. New one-shots must be resettable by `resetAnim()` — add any new transform there.
 - Elevation: `this.elev` is the cat's resting height (perch). Anything that writes `g.position.y` must add `this.elev`. `onProp` / `inBox` mark a cat parked on a box/perch; `walkTo` and `giveUp` call `dismountNow()` first, so events never have to think about it.
