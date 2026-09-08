@@ -73,6 +73,7 @@ function initPayload() {
 
 // ---------- chat pipeline ----------
 const lastCmd = new Map();   // key -> ms
+const today = () => new Date().toISOString().slice(0, 10);
 const catKey = (platform, user, id) => `${platform}:${String(id || user || 'anon').toLowerCase()}`;
 function onChat({ platform, user, id, msg, free }) {   // free = skip and don't consume the cooldown (paid redeems)
   msg = String(msg ?? '').trim(); user = String(user ?? 'anon').slice(0, 40) || 'anon';
@@ -90,12 +91,14 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
   if (lastCmd.size > 5000) for (const [k, t] of lastCmd) if (now - t > 60e3) lastCmd.delete(k);
   const prev = db.getCat(key), away = prev ? now - prev.last : 0;   // so the overlay can welcome regulars back
   db.touchCat(key);
+  if (platform !== 'admin') { db.usage(today(), 'commands'); db.chatter(today(), key); }   // pilot metrics: is chat actually using it?
   broadcast({ type: 'chat', platform, user, key, msg, away }, 'overlay');
   broadcast({ type: 'log', platform, user, msg }, 'admin');
 }
 function fireEvent(name, by = 'admin', args = {}) {
   if (!EVENTS.includes(name)) return false;
   if (name === 'clearcats') db.clearCats();   // stage and memory
+  db.usage(today(), 'events');
   broadcast({ type: 'event', name, ...args, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
   broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
@@ -184,6 +187,7 @@ const server = http.createServer(async (req, res) => {
   // API — GET is allowed too so Stream Deck's "Website" action can fire events
   if (p.startsWith('/api/')) {
     if (p === '/api/status') return json(res, 200, status);
+    if (p === '/api/usage') return json(res, 200, db.usageReport(+url.searchParams.get('days') || 14));
     if (p === '/api/leaderboard') { const out = { cotd: catOfTheDay() }; for (const s of STATS) out[s] = db.top(s, +url.searchParams.get('n') || 5); return json(res, 200, out); }
     if (p === '/api/settings') {
       if (req.method === 'POST') { try { setSettings(JSON.parse(await readBody(req) || '{}')); } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }
@@ -293,6 +297,7 @@ if (twitchCh) connectTwitch(twitchCh.replace(/^#/, ''), onChat, ok => { status.t
 if (kickCh) connectKick(kickCh, env('KICK_CHATROOM_ID'), onChat, ok => { status.kick = ok; sendStatus(); });
 if (!twitchCh && !kickCh) console.log('no TWITCH_CHANNEL / KICK_CHANNEL in .env — running with admin/simulated chat only');
 
+setInterval(() => { if (status.overlays > 0) db.usage(today(), 'minutes'); }, 60000);   // overlay-online minutes per day
 server.listen(PORT, () => {
   console.log(`chat-cats  overlay: http://localhost:${PORT}/?ui=0&bg=0   admin: http://localhost:${PORT}/admin`);
 });

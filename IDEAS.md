@@ -52,5 +52,14 @@ Not commitments. Cross things off or reorder freely.
 - Cat census page on the companion site
 - Cats resume what they were doing next stream — *positions are cheap to persist; states not worth it*
 
+## Validation plan (2026-09-08)
+No channel of our own; the goal is to find out whether streamers want this for starting-soon / BRB / just-chatting screens.
+1. ~~Public demo page with auto-director~~ — *done: `overlay/demo.html`, root `index.html` redirects; deploy repo to GitHub Pages*
+2. ~~Trailer mode for recording a clip~~ — *done: `index.html?ws=0&trailer=1&env=living`, ~70s scripted*
+3. ~~Usage counters~~ — *done: commands / unique chatters / events / online minutes per day, admin + `/api/usage`*
+4. Record the clip, post demo + clip where small just-chatting streamers hang out, offer hands-on setup to 3–5 pilots
+5. Pilot infra: one cheap VPS per pilot streamer (single-tenant is fine), or run it on their PC over a call
+6. Decide on hosting / multi-tenant only if pilots keep it on for a second stream
+
 ## Suggested order
 Batch one (race, traits, hunger, event pack, per-cat commands, leaderboards, cat of the day) is done. Next candidates: group naps, day/night cycle, musical beds / red light green light on the race scaffold, accessories, `!photo`, cat census on /play. Economy last or never.

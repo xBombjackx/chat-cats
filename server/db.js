@@ -13,6 +13,8 @@ export function openDb(path) {
     );
     CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS stats (key TEXT NOT NULL, stat TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(key, stat));
+    CREATE TABLE IF NOT EXISTS usage (day TEXT PRIMARY KEY, commands INTEGER NOT NULL DEFAULT 0, minutes INTEGER NOT NULL DEFAULT 0, events INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS chatters (day TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY(day, key));
   `);
   const upsertCat = db.prepare(`INSERT INTO cats(key,name,look,last) VALUES(?,?,?,?)
     ON CONFLICT(key) DO UPDATE SET name=excluded.name, look=excluded.look, last=excluded.last`);
@@ -40,5 +42,8 @@ export function openDb(path) {
     bump(key, stat) { bump.run(key, stat); },
     top(stat, limit = 5) { return top.all(stat, limit).map(r => ({ key: r.key, name: r.name || r.key.split(':')[1], n: r.n })); },
     randomCat(maxAgeMs) { return anyCats.get(Date.now() - maxAgeMs) || null; },
+    usage(day, col) { db.prepare(`INSERT INTO usage(day,${col}) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET ${col}=${col}+1`).run(day); },
+    chatter(day, key) { db.prepare('INSERT OR IGNORE INTO chatters(day,key) VALUES(?,?)').run(day, key); },
+    usageReport(days) { return db.prepare(`SELECT u.day, u.commands, u.minutes, u.events, (SELECT COUNT(*) FROM chatters c WHERE c.day=u.day) AS chatters FROM usage u ORDER BY u.day DESC LIMIT ?`).all(days); },
   };
 }

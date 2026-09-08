@@ -369,7 +369,8 @@ let MAX_CATS = 30;
 const labels = document.getElementById('labels');
 const log = document.getElementById('log');
 const net = { send(){} };   // replaced by net.js when the server is around
-function logLine(user, msg, note){ const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span><span style="opacity:.6"></span>`; const [m,n]=d.querySelectorAll('span'); d.querySelector('b').textContent=user; m.textContent=msg; n.textContent=note?` — ${note}`:''; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
+function logLine(user, msg, note){ if(window.parent!==window) try{ parent.postMessage({type:'log',user,msg,note:note||''},'*'); }catch{}   // demo page shows a chat feed
+  const d=document.createElement('div'); d.innerHTML=`<b></b>: <span></span><span style="opacity:.6"></span>`; const [m,n]=d.querySelectorAll('span'); d.querySelector('b').textContent=user; m.textContent=msg; n.textContent=note?` — ${note}`:''; log.prepend(d); while(log.children.length>30) log.lastChild.remove(); }
 const stat=(cat,name)=>{ if(!PLAY&&cat&&!cat.dead) net.send({type:'stat', key:cat.key, name}); };   // cozy leaderboards
 let cotdKey=null;
 function crownCotd(c){ if(!c||c.key!==cotdKey) return; c.tag.classList.add('cotd'); c.tag.textContent=c.name+' ✨'; c.say('cat of the day ✨'); }
@@ -794,6 +795,54 @@ if(q.get('demo')==='1'){   // standalone demo, no server
   handleChat('void_enjoyer','!cat black tuxedo beanie eyes yellow');
   handleChat('cream_puff','!cat cream calico bow eyes blue');
 }
+
+// ---------- demo director (public demo page, trailer recording) ----------
+// ?autodemo=1: no server needed — spawns a crowd and keeps things happening. ?trailer=1: a tight scripted 40s for recording.
+const AUTODEMO=q.get('autodemo')==='1', TRAILER=q.get('trailer')==='1';
+const DEMO_NAMES=['mochi','biscuit','pixel','noodle','tofu','gizmo','pepper','waffles','bean','miso','clover','ziggy','nova','pudding','maple','sprout','pickle','olive','peach','tater'];
+const usedNames=new Set();
+function demoSpawn(n, species){ const looks=Object.keys(COLORS).filter(k=>!['ginger','grey','tortie'].includes(k)), sizes=['adult','adult','kitten','fat','skinny'];
+  for(let i=0;i<n;i++){ let name=pick(DEMO_NAMES); let k=0; while(usedNames.has(name)&&k++<30) name=pick(DEMO_NAMES)+Math.floor(Math.random()*90); usedNames.add(name);
+    const sp=species||(SPECIES_MODE==='mixed'?pick(['cat','cat','cat','dog','dog','raccoon','otter']):SPECIES_MODE);
+    handleChat(name, `!${sp} ${pick(looks)} ${pick(PATTERNS)} ${pick(HATS)} ${pick(sizes)} eyes ${pick(Object.keys(EYES))}`); } }
+function randomCatName(){ const l=[...cats.values()].filter(c=>!c.dead); return l.length?pick(l).name:null; }
+const director={ timers:[], on:false,
+  start(){ if(this.on) return; this.on=true;
+    const chat=()=>{ if(!this.on) return; const who=randomCatName(); if(who){ const other=randomCatName();
+        const cmd=pick(['!meow','!meow','!jump','!zoomies','!lick','!roll','!stretch','!pounce','!hiss','!sleep','!loaf','!wave','!shake','!stalk','!sneak','!spin', other&&other!==who?'!pet @'+other:'!meow', other&&other!==who?'!tackle @'+other:'!jump', other&&other!==who?'!follow @'+other:'!zoomies']);
+        handleChat(who, cmd); }
+      this.timers.push(setTimeout(chat, rnd(2500,7000))); };
+    const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti']);
+      if(name==='race'){ events.race({joinSecs:8}); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!join'); },2000)); }
+      else events[name]();
+      this.timers.push(setTimeout(ev, name==='race'?60000:rnd(25000,45000))); };
+    chat(); this.timers.push(setTimeout(ev, 12000));
+    if(cats.size<6) demoSpawn(6-cats.size);
+    this.timers.push(setInterval(()=>{ if(cats.size<7&&Math.random()<0.5) demoSpawn(1); },45000)); },
+  stop(){ this.on=false; for(const t of this.timers){ clearTimeout(t); clearInterval(t); } this.timers=[]; } };
+// trailer: scripted beats you can record in OBS
+function trailer(){ const at=(ms,f)=>setTimeout(f,ms);
+  at(0,()=>{ demoSpawn(7); banner('chat cats',2500); });
+  at(4000,()=>{ const n=randomCatName(); if(n) handleChat(n,'!zoomies'); });
+  at(6000,()=>{ const a=randomCatName(), b=randomCatName(); if(a&&b&&a!==b) handleChat(a,'!pet @'+b); });
+  at(9000,()=>{ events.treat(); });
+  at(13000,()=>{ const a=randomCatName(), b=randomCatName(); if(a&&b&&a!==b) handleChat(a,'!sneak @'+b); });
+  at(19000,()=>{ events.race({joinSecs:6}); at(1500,()=>{ for(const c of [...cats.values()].slice(0,5)) handleChat(c.name,'!join'); }); });
+  at(42000,()=>{ events.boxes({n:4}); });
+  at(46000,()=>{ events.cucumber(); });
+  at(52000,()=>{ events.vacuum(); });
+  at(64000,()=>{ events.confetti(); banner('!cat to join',4000); });
+  at(70000,()=>{ director.start(); }); }
+// the demo page drives the embedded overlay with postMessage
+addEventListener('message', e=>{ const m=e.data; if(!m||typeof m!=='object') return;
+  if(m.type==='chat' && typeof m.msg==='string') handleChat(String(m.user||'you').slice(0,25), m.msg.slice(0,80));
+  else if(m.type==='event' && events[m.name]) events[m.name](m);
+  else if(m.type==='env') setEnv(m.env);
+  else if(m.type==='species' && (SPECIES[m.species]||m.species==='mixed')) SPECIES_MODE=m.species;
+  else if(m.type==='director') m.on?director.start():director.stop(); });
+if(AUTODEMO||TRAILER){ SPECIES_MODE=q.get('species')||'mixed'; if(!envLocked) setEnv(q.get('env')||'living'); if(!props.length) defaultProps(); document.body.classList.add('hidden'); }
+if(AUTODEMO) setTimeout(()=>director.start(), 300);
+if(TRAILER) setTimeout(trailer, 500);
 
 // ---------- minigames ----------
 const bannerEl=document.getElementById('banner');

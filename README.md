@@ -2,6 +2,10 @@
 
 Cozy voxel cats for stream. Chat spawns and customizes a little cat, cats hang out on the overlay, streamer runs events.
 
+## Try it without installing anything
+
+Open `overlay/demo.html` (or deploy the repo to GitHub Pages and share the root URL): a landing page with the overlay embedded in **auto-demo** mode — a crowd spawns, fake chat keeps typing, events fire on their own, and visitors can type commands themselves. `overlay/index.html?ws=0&autodemo=1&env=living` is the bare auto-demo; `?trailer=1` instead runs a scripted 70-second showcase (zoomies, a pet, a treat, a sneak attack, a race, box drop, cucumber, vacuum, confetti) for recording a clip in OBS.
+
 ## Run
 
 ```
@@ -59,6 +63,10 @@ Simulate any of these without Twitch from the admin page, or `GET /api/test?kind
 Fire the `race` event (streamer panel, admin page, Stream Deck `/api/event/race`, or a channel point reward mapped to `race`). Chat types `!join` for 20 seconds; if fewer than two join, random cats fill the field. Cats line up on the left, 3-2-1, then run right with speed bursts, grooming stops and a butterfly to chase. First across wins and wears a crown until the next race.
 
 If Twitch is connected with the predictions scope, each race opens a 30-second Twitch Prediction with the racers as outcomes while the cats wait at the line, and resolves it on the winner. Toggle on the admin page. Tokens from before this feature need one more **Connect Twitch** to pick up the scope.
+
+## Pilot metrics
+
+The server counts per day: chat commands, unique chatters, streamer events, and minutes an overlay was connected. Admin page, or `GET /api/usage?days=14`. That's the number that tells you whether chat actually plays with it.
 
 ## Leaderboards and cat of the day
 
