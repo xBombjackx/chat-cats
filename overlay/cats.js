@@ -99,6 +99,7 @@ class Cat {
     this.g.rotation.y = this.facing;
   }
   say(text, cls=''){ if(this.bubbleEl) this.bubbleEl.remove(); const d=document.createElement('div'); d.className='bubble '+cls; d.textContent=text; labels.appendChild(d); this.bubbleEl=d; clearTimeout(this.bt); this.bt=setTimeout(()=>{d.remove(); if(this.bubbleEl===d) this.bubbleEl=null;}, cls==='pow'?600:2600); }
+  reserve(p){ this.releaseProp(); p.users++; this.prop=p; p.taken=p.taken||new Set(); this.slot=0; while(p.taken.has(this.slot)) this.slot++; p.taken.add(this.slot); }
   releaseProp(){ if(this.prop){ this.prop.users--; this.prop.taken?.delete(this.slot); this.prop=null; } }
   walkTo(x,z,speed,keep){ if(this.onProp) this.dismountNow(); if(!keep) this.releaseProp(); this.target=freePoint(x,z); this.speed=speed||2.2*this.T.speed; this.bestD=Infinity; this.stuckT=0; this.setState('walk'); }
   setName(n){ this.name=n; this.tag.textContent=this.afk?n+' 💤':this.key===cotdKey?n+' ✨':n; }
@@ -146,11 +147,13 @@ class Cat {
     } else if(s==='walk' && this.target){
       const dx=this.target.x-g.position.x, dz=this.target.z-g.position.z, d=Math.hypot(dx,dz);
       if(d<this.bestD-0.05){ this.bestD=d; this.stuckT=0; } else this.stuckT+=dt;   // no progress for a while (blocked by a zone/prop) → give up
-      if(d<0.15){ this.target=null; this.setState('idle'); this.timer=rnd(1.5,4); if(this.onArrive){const f=this.onArrive;this.onArrive=null;f();} }
-      else if(this.stuckT>1.5) this.giveUp();
+      const close=this.prop?0.6:0.15;   // heading for a prop: near enough is fine, repulsion fields can overlap the exact spot
+      if(d<close || (this.stuckT>3 && d<1.4)){ this.target=null; this.setState('idle'); this.timer=rnd(1.5,4); if(this.onArrive){const f=this.onArrive;this.onArrive=null;f();} }
+      else if(this.stuckT>3) this.giveUp();
       else { let vx=dx/d, vz=dz/d;   // steer around other cats and props
         if(!this.racing) for(const o of cats.values()){ if(o===this||o.noCollide) continue; const ox=g.position.x-o.g.position.x, oz=g.position.z-o.g.position.z, od=Math.hypot(ox,oz); if(od<2.2&&od>1e-3){ const w=(1-od/2.2)*1.7; vx+=ox/od*w; vz+=oz/od*w; } }
         for(const p of props){ if(p===this.prop||p.type==='toy') continue; const ox=g.position.x-p.x, oz=g.position.z-p.z, od=Math.hypot(ox,oz), rr=p.r+1.0; if(od<rr&&od>1e-3){ const w=(1-od/rr)*2.4; vx+=ox/od*w; vz+=oz/od*w; } }
+        if(vac){ const ox=g.position.x-vac.mesh.position.x, oz=g.position.z-vac.mesh.position.z, od=Math.hypot(ox,oz); if(od<4&&od>1e-3){ const w=(1-od/4)*4, rx=ox/od, rz=oz/od, side=(rx*vz-rz*vx)>=0?1:-1; vx+=rx*w-rz*side*w*0.9; vz+=rz*w+rx*side*w*0.9; } }   // nobody walks into the vacuum — step round it
         if(obstacles.length){ const o=obstaclePush(g.position.x,g.position.z,1.4); if(o.nx||o.nz){ const into=vx*o.nx+vz*o.nz; if(into<0){ vx-=into*o.nx; vz-=into*o.nz; }   // slide along room furniture
           if(Math.hypot(vx,vz)<0.35){ const r=o.rect; if(o.nx) vz+=(g.position.z<(r.z0+r.z1)/2)?-1:1; else vx+=(g.position.x<(r.x0+r.x1)/2)?-1:1; }   // head-on: go round the nearer end
           vx+=o.nx*0.35; vz+=o.nz*0.35; } }
@@ -229,7 +232,8 @@ class Cat {
     if(this.bubbleEl){ this.bubbleEl.style.left=sx+'px'; this.bubbleEl.style.top=(sy-18)+'px'; }
   }
   goTo(p){
-    p.users++; this.prop=p; this.chase=0; p.taken=p.taken||new Set(); this.slot=0; while(p.taken.has(this.slot)) this.slot++; p.taken.add(this.slot);
+    if(this.anim) this.resetAnim();   // an animation ending later would drop the reservation we're about to make
+    this.reserve(p); this.chase=0;
     const walk=()=>{ const dx=this.g.position.x-p.x, dz=this.g.position.z-p.z, d=Math.hypot(dx,dz)||1; this.walkTo(p.x+dx/d*(p.r+0.6), p.z+dz/d*(p.r+0.6), p.type==='toy'?3.2:2.4, true); this.onArrive=arrive; };
     const arrive=()=>{ if(this.prop!==p) return;
       if(p.type==='toy' && Math.hypot(p.x-this.g.position.x,p.z-this.g.position.z)>p.r+1.4 && this.chase++<3){ walk(); return; }   // ball rolled off — chase it
@@ -255,6 +259,7 @@ class Cat {
     if(this.following){ const f=this.following; if(f.cat.dead||performance.now()>f.until){ this.following=null; } else { const o=f.cat, dx=this.g.position.x-o.g.position.x, dz=this.g.position.z-o.g.position.z, d=Math.hypot(dx,dz)||1;
       if(d>2.4){ this.walkTo(o.g.position.x+dx/d*1.7, o.g.position.z+dz/d*1.7, Math.max(2.5,o.speed||2.5)); this.onArrive=()=>{ this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.timer=rnd(0.5,1.5); }; }
       else { this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.setState('sit'); this.timer=rnd(1,2); } return; } }
+    if(this.onProp && vac){ if(this.inBox){ this.hiding=true; this.setState('loaf'); } else { this.setState('sit'); this.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+3}; } this.timer=rnd(1.5,3); return; }
     if(this.onProp && this.sneakTarget){ const t=this.sneakTarget; if(t.dead||Math.hypot(t.g.position.x-this.g.position.x,t.g.position.z-this.g.position.z)>13){ this.sneakTarget=null; }
       else if(this.inBox){ this.hiding=true; this.setState('loaf'); this.timer=rnd(5,9); this.sneakWaits=(this.sneakWaits||0)+1; if(this.sneakWaits>2) this.sneakTarget=null; return; }
       else { faceAt(this,t); this.play('crouch',rnd(3,6)); return; } }   // crouch ends → sneakPounce leaps off
@@ -409,6 +414,7 @@ addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.bod
 
 // ---------- streamer events ----------
 let laser=null, fishes=[], busy=false, vac=null, treats=[];
+function refuge(c){ let best=null, bd=40; for(const p of props){ if(!(p.h>0||p.type==='box')||p.users>=(p.cap||1)) continue; const d=Math.hypot(p.x-c.g.position.x,p.z-c.g.position.z); if(d<bd){ bd=d; best=p; } } return best; }
 function removeProp(p){ for(const c of cats.values()){ if(c.onProp===p) c.dismountNow(); if(c.prop===p) c.releaseProp(); } scene.remove(p.mesh); props=props.filter(x=>x!==p); }
 const events = {
   wrestlemania(){
@@ -422,7 +428,9 @@ const events = {
   race(m){ race.start({predictions:!!m?.predictions, joinSecs:m?.joinSecs}); },
   vacuum(){ if(vac||PLAY) return; const g=new THREE.Group(); const body=new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,0.3,16),mat(0x444a55)); body.position.y=0.15; g.add(body); box(g,0.3,0.1,0.3,0xff4d4d,0,0.35,0);
     const z=(ZMIN+ZMAX)/2; g.position.set(-XMAX-2,0,z); scene.add(g); vac={mesh:g,t0:performance.now(),z}; banner('🤖 VACUUM',1500); toast('vacuum');
-    for(const c of cats.values()){ if(c.onProp&&c.elev>0){ c.say('👀'); continue; } c.giveUp(); c.say(pick(['!!','😱','NOPE','hss'])); c.play('arch',0.6); const away=c.g.position.z<z?ZMIN+0.5:ZMAX-0.5; setTimeout(()=>{ if(!c.dead) c.walkTo(c.g.position.x+rnd(-2,2), away, 6); },rnd(100,700)); }
+    for(const c of cats.values()){ if(c.onProp){ if(c.inBox) c.hiding=true; c.say(pick(['👀','…'])); continue; } c.giveUp(); c.say(pick(['!!','😱','NOPE','hss'])); c.play('arch',0.5);
+      setTimeout(()=>{ if(c.dead||!vac) return; const spot=refuge(c); if(spot){ c.goTo(spot); c.say(pick(['up!','hide!','📦'])); }   // get off the floor if anything's free
+        else { const away=c.g.position.z<z?ZMIN+0.5:ZMAX-0.5; c.walkTo(c.g.position.x+rnd(-3,3), away, 6); c.onArrive=()=>{ if(vac){ c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+9}; c.play('arch',1.0); c.timer=9; } }; } }, rnd(100,600)); }
     setTimeout(()=>{ if(vac){ scene.remove(vac.mesh); vac=null; } for(const c of cats.values()) if(!c.dead&&Math.random()<0.5) c.say(pick(['…','phew','😾'])); }, 9500); },
   doorbell(){ banner('🔔 ding dong',2000); toast('doorbell');
     for(const c of cats.values()){ if(c.onProp){ c.say('👀'); continue; } c.giveUp(); c.say(pick(['!!','who?','😨'])); const side=c.g.position.x<0?-1:1; c.walkTo(side*(XMAX-0.3), ZMIN+rnd(0.3,1.5), 5.5); c.onArrive=()=>{ c.facing=-Math.PI/2; c.setState('sit'); c.timer=rnd(5,8); }; }
@@ -536,7 +544,7 @@ function squabble(a,b,p){
   setTimeout(()=>{ if(a.dead||b.dead||!p.mesh.parent) return;   // arch ended: both reservations were dropped by the anim reset
     const winner=Math.random()<(isRival(a,b)?0.6:0.5)?a:b, loser=winner===a?b:a;   // the pushy one usually wins
     loser.say(pick(['😾','fine.','hmph'])); loser.walkTo(loser.g.position.x+rnd(-4,4), loser.g.position.z+rnd(-3,3), 3);
-    p.users++; winner.prop=p; winner.useProp(p); }, 1150);
+    winner.reserve(p); winner.useProp(p); }, 1150);
 }
 
 // ---------- twitch reactions (subs, bits, raids, follows) ----------
@@ -804,6 +812,7 @@ function frame(now){
   for(const f of fishes){ const conf=f.userData.conf; f.userData.vy-=(conf?3:25)*dt; if(conf) f.userData.vy=Math.max(f.userData.vy,-2.5); f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(conf){ f.rotation.x+=dt*4; f.position.x+=Math.sin(t*3+f.position.z)*dt*1.2; } if(f.position.y<(conf?0.03:0.6)){ scene.remove(f); f.userData.gone=true; } }
   fishes=fishes.filter(f=>!f.userData.gone);
   if(vac){ const k=(now-vac.t0)/1000; vac.mesh.position.x=-XMAX-2+k*(2*XMAX+4)/8.5; vac.mesh.rotation.y+=dt*4;
+    for(const c of cats.values()) if(c.onProp&&!c.inBox&&!c.anim) c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:t+0.5};
     for(const c of cats.values()){ const dx=c.g.position.x-vac.mesh.position.x, dz=c.g.position.z-vac.mesh.position.z, d=Math.hypot(dx,dz); if(d<1.7&&d>1e-3&&!c.onProp){ c.g.position.x=clamp(c.g.position.x+dx/d*(1.7-d),-XMAX,XMAX); c.g.position.z=clamp(c.g.position.z+dz/d*(1.7-d),ZMIN,ZMAX); if(c.state!=='walk'){ c.giveUp(); c.walkTo(c.g.position.x+dx/d*3, c.g.position.z+dz/d*3, 6); c.say('!!'); } } } }
   for(const tr of treats){ if(tr.position.y>0.15){ tr.userData.vy-=25*dt; tr.position.y=Math.max(0.15,tr.position.y+tr.userData.vy*dt); tr.rotation.y+=dt*4; if(tr.position.y<=0.15){ tr.userData.landed=t;
       const near4=[...cats.values()].filter(c=>!c.dead).sort((a,b)=>Math.hypot(a.g.position.x-tr.position.x,a.g.position.z-tr.position.z)-Math.hypot(b.g.position.x-tr.position.x,b.g.position.z-tr.position.z)).slice(0,4);
