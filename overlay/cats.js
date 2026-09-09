@@ -762,6 +762,7 @@ addEventListener('resize', rebuildZones);
 if(q.get('nogo')){ zones=q.get('nogo').split(';').map(s=>{ let [x,y,w,h]=s.split(',').map(Number); if([x,y,w,h].some(v=>v>1)){ x/=100;y/=100;w/=100;h/=100; } return {x,y,w,h}; }).filter(r=>[r.x,r.y,r.w,r.h].every(Number.isFinite)); zonesLocked=true; }
 if(q.get('zones')==='1') document.body.classList.add('showzones');
 if(q.get('env')){ envLocked=true; setEnv(q.get('env')); }
+document.querySelectorAll('[data-species]').forEach(b=>b.onclick=()=>{ SPECIES_MODE=b.dataset.species; toast('animals: '+b.dataset.species); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({species:b.dataset.species})}).catch(()=>{}); });
 document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
 rebuildZones();
 
