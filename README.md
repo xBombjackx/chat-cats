@@ -25,7 +25,7 @@ Node 22.13+ (uses the built-in `node:sqlite`). No token needed: Twitch chat is r
 
 ## OBS
 
-Browser source → `http://localhost:8080/?ui=0&bg=0` (1920×1080). Transparent background. Add `&depth=0` to keep cats in a shallow strip at the bottom, `&tags=0` to hide name tags.
+Browser source → `http://localhost:8080/?ui=0&bg=0` (1920×1080). Transparent background. Add `&depth=0` to keep cats in a shallow strip at the bottom, `&tags=0` to hide name tags, `&zoom=1.2` to pull the camera back (or `0.8` to push in). The camera fits the whole stage at any window shape; 16:9 is the reference framing.
 
 ### Rooms
 

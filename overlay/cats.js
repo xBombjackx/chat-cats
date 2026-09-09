@@ -5,12 +5,16 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
-camera.position.set(0, 10.5, 31); camera.lookAt(0, 0.4, -2.5);
+let CAM0={x:0,y:10.5,z:31}, LOOK={x:0,y:0.4,z:-2.5};   // 16:9 framing; fitCamera() pulls back on narrower windows so the stage always fits
+const ZOOM=Math.max(0.5,Math.min(2.5,+(new URLSearchParams(location.search).get('zoom'))||1));
+function fitCamera(){ const aspect=innerWidth/innerHeight, half=Math.tan(camera.fov/2*Math.PI/180)*aspect, d0=Math.hypot(CAM0.x-LOOK.x,CAM0.y-LOOK.y,CAM0.z-LOOK.z);
+  const k=Math.max(1,(XMAX+2.5)/half/(d0-6))*ZOOM;   // width needed at the near edge of the stage
+  camera.position.set(LOOK.x+(CAM0.x-LOOK.x)*k, LOOK.y+(CAM0.y-LOOK.y)*k, LOOK.z+(CAM0.z-LOOK.z)*k); camera.lookAt(LOOK.x,LOOK.y,LOOK.z); }
 scene.add(new THREE.HemisphereLight(0xfff4e0, 0x6b5a7a, 0.9));
 const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(5, 10, 6); scene.add(sun);
 const XMAX = 11; let ZMIN = -7, ZMAX = 3;   // depth: ZMIN is far, ZMAX is near the viewer
 const PLAY = new URLSearchParams(location.search).get('mode')==='play';   // companion page: mirrors the overlay, no AI of its own
-function resize(){ renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); }
+function resize(){ renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); fitCamera(); }
 addEventListener('resize', resize); resize();
 
 // ---------- helpers ----------
@@ -644,7 +648,7 @@ $('#hideui').onclick=()=>document.body.classList.add('hidden');
 addEventListener('keydown',e=>{ if(!PLAY&&e.key==='h'&&document.activeElement.tagName!=='INPUT') document.body.classList.toggle('hidden'); });
 // URL params for OBS: ?ui=0&bg=0&tags=0
 const q=new URLSearchParams(location.search);
-if(q.get('depth')==='0'){ ZMIN=-1.6; ZMAX=1.8; camera.position.set(0,5.5,24); camera.lookAt(0,0.8,0); }
+if(q.get('depth')==='0'){ ZMIN=-1.6; ZMAX=1.8; CAM0={x:0,y:5.5,z:24}; LOOK={x:0,y:0.8,z:0}; fitCamera(); }
 if(q.get('ui')==='0') document.body.classList.add('hidden');
 if(q.get('bg')==='0') document.body.classList.remove('demo-bg');
 if(q.get('tags')==='0') labels.classList.add('notags');
