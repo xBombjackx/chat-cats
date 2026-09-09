@@ -52,6 +52,9 @@ Not commitments. Cross things off or reorder freely.
 - Cat census page on the companion site
 - Cats resume what they were doing next stream — *positions are cheap to persist; states not worth it*
 
+## Known rough edges
+- Control panels (overlay page, press H) fit a normal window now but the compact text is hard to read. Owner said fine for now. Fix idea: tabs or a collapsible sidebar instead of shrinking everything; or move the streamer controls to `/admin` only and keep the overlay panel to the chat simulator.
+
 ## Validation plan (2026-09-08)
 No channel of our own; the goal is to find out whether streamers want this for starting-soon / BRB / just-chatting screens.
 1. ~~Public demo page with auto-director~~ — *done: `overlay/demo.html`, root `index.html` redirects; deploy repo to GitHub Pages*
