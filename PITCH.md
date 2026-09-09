@@ -1,6 +1,6 @@
 # Pitch drafts and pilot checklist
 
-Drafts to paste, edit freely. Replace DEMO_URL with the GitHub Pages link once the repo is pushed (Settings → Pages → deploy from branch, root).
+Drafts to paste, edit freely. Demo: https://xbombjackx.github.io/chat-cats/ · Repo: https://github.com/xBombjackx/chat-cats
 
 ## Short post (Reddit / Discord)
 
@@ -8,13 +8,13 @@ Drafts to paste, edit freely. Replace DEMO_URL with the GitHub Pages link once t
 
 Viewers type `!cat` and get a little voxel cat that stays on your stream. They eat, nap, pick secret friends and rivals, sneak up on each other, hide in boxes, and race (with Twitch Predictions if you want). Dogs, raccoons and otters too. You get buttons for feeding time, a treat cannon, a vacuum that sends everyone scrambling, and subs/bits/raids hooks.
 
-It's meant for the parts of a stream where your face is small and chat needs something to do. Live demo you can type into: DEMO_URL
+It's meant for the parts of a stream where your face is small and chat needs something to do. Live demo you can type into: https://xbombjackx.github.io/chat-cats/
 
 Free while I'm testing it. If you do just-chatting or long starting-soon screens and want it on your stream, reply or DM and I'll set it up with you (10 minutes, one OBS browser source).
 
 ## DM to a specific streamer
 
-Hey — I watch your just-chatting bits and built something for exactly that dead-air stretch. It's an overlay where chat spawns cats that hang out on stream and get into trouble (races, sneak attacks, box ambushes). 30-second demo: DEMO_URL
+Hey — I watch your just-chatting bits and built something for exactly that dead-air stretch. It's an overlay where chat spawns cats that hang out on stream and get into trouble (races, sneak attacks, box ambushes). 30-second demo: https://xbombjackx.github.io/chat-cats/
 
 Would you try it for one stream? I'd set it up with you on a call, it's one browser source in OBS, and I'll take it down if chat doesn't bite. No cost.
 

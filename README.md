@@ -1,5 +1,7 @@
 # chat-cats
 
+**Live demo:** https://xbombjackx.github.io/chat-cats/ — no install, fake chat keeps it busy, type your own commands.
+
 Cozy voxel cats for stream. Chat spawns and customizes a little cat, cats hang out on the overlay, streamer runs events.
 
 ## Try it without installing anything

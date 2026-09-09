@@ -57,7 +57,7 @@ No channel of our own; the goal is to find out whether streamers want this for s
 1. ~~Public demo page with auto-director~~ — *done: `overlay/demo.html`, root `index.html` redirects; deploy repo to GitHub Pages*
 2. ~~Trailer mode for recording a clip~~ — *done: `index.html?ws=0&trailer=1&env=living`, ~70s scripted*
 3. ~~Usage counters~~ — *done: commands / unique chatters / events / online minutes per day, admin + `/api/usage`*
-4. Record the clip, post demo + clip where small just-chatting streamers hang out, offer hands-on setup to 3–5 pilots
+4. Record the clip (`?trailer=1` in OBS), post demo + clip where small just-chatting streamers hang out, offer hands-on setup to 3–5 pilots — demo is live at https://xbombjackx.github.io/chat-cats/
 5. Pilot infra: one cheap VPS per pilot streamer (single-tenant is fine), or run it on their PC over a call
 6. Decide on hosting / multi-tenant only if pilots keep it on for a second stream
 
