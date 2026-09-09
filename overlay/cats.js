@@ -19,10 +19,10 @@ addEventListener('resize', resize); resize();
 
 // ---------- helpers ----------
 const COLORS = {orange:0xf28c38, ginger:0xf28c38, black:0x2b2b33, white:0xf5f1ea, gray:0x8e8e96, grey:0x8e8e96,
-  pink:0xf5a3c7, brown:0x7a4b2a, cream:0xf1dfb8, golden:0xd9a441, tan:0xc9a06a, silver:0xb8bcc4, blue:0x7aa6d9, purple:0xa98bd6, mint:0x9fd6b5, tortie:0x6b3a1e};
+  pink:0xf5a3c7, brown:0x7a4b2a, cream:0xf1dfb8, golden:0xd9a441, tan:0xc9a06a, silver:0xb8bcc4, dilute:0x9fa4b0, peach:0xf5c6a0, blue:0x7aa6d9, purple:0xa98bd6, mint:0x9fd6b5, tortie:0x6b3a1e};
 const EYES = {green:0x5fd36a, blue:0x5aa9ff, yellow:0xffd54a, amber:0xffa62b, pink:0xff7bd1, red:0xff5252, gold:0xffd54a};
 const HATS = ['none','crown','beanie','party','bow','halo'];
-const PATTERNS = ['solid','tabby','tuxedo','calico','spotted','patch'];
+const PATTERNS = ['solid','tabby','tuxedo','calico','spotted','patch','tortie'];
 // personality: multipliers on the idle AI. Picked from the key hash like everything else secret.
 const TRAITS = { chill:{}, lazy:{walk:0.5,scrap:0.5,zoom:0,follow:0.7,ambush:0.5,sleep:1.7,speed:0.85,sit:1.6},
   zoomy:{walk:1.5,zoom:2,sleep:0.6,speed:1.3,sit:0.6,ball:1.6}, clingy:{scrap:0.4,follow:2,hiss:0.4,ambush:0.5,greet:2,sit:1.2},
@@ -61,6 +61,10 @@ function buildCat(t,L,c,e,dark,white){ const b=t.body;
   if(L.pattern==='calico'){ box(b,0.5,0.35,0.85,0xf28c38,-0.25,0.95,0); box(hd,0.6,0.5,0.55,0x2b2b33,-0.1,0.45,-0.45); box(hd,0.4,0.3,0.3,0xf28c38,0.35,0.35,0.6); }
   t.legs=[]; for(const [x,z] of [[0.35,-0.25],[0.35,0.25],[-0.35,-0.25],[-0.35,0.25]]){ const p=new THREE.Group(); p.position.set(x,0.4,z); box(p,0.32,0.4,0.32,c,0,-0.2,0); box(p,0.33,0.12,0.34,L.pattern==='tuxedo'?white:c,0,-0.35,0); b.add(p); t.legs.push(p); }
   t.tail = new THREE.Group(); t.tail.position.set(-0.55,0.85,0); box(t.tail,0.22,0.7,0.22,c,-0.05,0.3,0); box(t.tail,0.24,0.24,0.24,L.pattern==='tabby'?dark:c,-0.05,0.72,0); t.tail.rotation.z = 0.6; b.add(t.tail);
+  if(L.pattern==='tortie'||L.pattern==='spotted'){ const sc=parseColor(L.spots||'',COLORS)??(L.pattern==='tortie'?COLORS.peach:dark);   // mottled patches on both flanks, the back, forehead, a paw and the tail tip
+    for(const [x,y,z,w,h] of [[-0.35,0.95,1,0.42,0.3],[0.15,1.02,-1,0.36,0.28],[-0.05,0.58,1,0.3,0.24],[0.3,0.72,-1,0.3,0.3],[-0.42,0.62,-1,0.26,0.22],[0.38,0.95,1,0.22,0.2]]) box(b,w,h,0.06,sc,x,y,z*0.43);
+    box(b,0.44,0.28,0.32,sc,-0.28,1.1,0.05);
+    if(L.pattern==='tortie'){ box(hd,0.62,0.36,0.6,sc,0.38,0.45,0.32); box(hd,0.5,0.2,0.28,sc,0.42,-0.42,-0.36); box(t.tail,0.26,0.28,0.26,sc,-0.05,0.74,0); box(t.legs[1],0.34,0.22,0.34,sc,0,-0.18,0); } }
   t.hatG=new THREE.Group(); t.hatG.position.set(0,0.6,0); hd.add(t.hatG); t.h=2.05; }
 function buildDog(t,L,c,e,dark,white){ const b=t.body, light=lighten(c,1.3);
   box(b,1.5,0.8,0.85,c,0,0.75,0); box(b,0.5,0.5,0.62,light,0.55,0.55,0);   // longer torso, lighter chest
@@ -143,7 +147,7 @@ class Cat {
     S.build(this, L, c, e, dark, white);                  // species sets head/headPos/ears/eyes/legs/tail/tongue/hatG/h
     this.h = this.h*sz[1];                                // label height
     // hat (shared)
-    const h=this.hatG, hat=this.raceCrown?'crown':L.hat;
+    const h=this.hatG, hat=this.raceCrown?'crown':this.party?'party':L.hat;
     if(hat==='crown'){ box(h,0.8,0.2,0.8,0xffd23f,0,0.1,0); for(const [x,z] of [[-.3,-.3],[.3,-.3],[-.3,.3],[.3,.3]]) box(h,0.18,0.3,0.18,0xffd23f,x,0.3,z); box(h,0.16,0.16,0.16,0xff4d6d,0.42,0.2,0); }
     if(hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
     if(hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
@@ -176,6 +180,7 @@ class Cat {
   wave(){ this.waveT=0; this.setState('idle'); this.timer=2; }
   update(dt, now){
     this.t += dt; if(!PLAY) this.hunger=Math.min(1,this.hunger+dt/900);
+    if(this.party && performance.now()>this.partyUntil){ this.party=false; this.build(); }
     const g=this.g, b=this.body, s=this.state;
     // eye blink
     const blink = (Math.sin(now*1.3+this.g.position.x*3)>0.985)||s==='sleep';
@@ -302,6 +307,11 @@ class Cat {
   }
   useProp(p){
     this.facing=Math.atan2(-(p.z-this.g.position.z), p.x-this.g.position.x);
+    if(p.type==='cake'){ if(p.amount<=0){ this.say('all gone 😿'); this.releaseProp(); return; }
+      if(p.lit){ if(this.key!==LOU.key && cats.has(LOU.key) && !cats.get(LOU.key).dead){ this.say(pick(['not yet!','wait for Lou','🎶'])); this.releaseProp(); this.timer=rnd(2,4); return; }   // birthday girl blows the candles first
+        p.lit=false; for(const m of p.mesh.children) if(m.userData.flame) m.visible=false; this.jump(); this.say('💨 🎂'); banner('🎂 make a wish, Lou!',3000); confettiBurst(); }
+      p.amount--; propVisual(p); this.hunger=0; this.play('eat',3); this.say(pick(['🎂','nom nom','cake!!','😋']));
+      if(p.amount<=0) setTimeout(()=>{ if(props.includes(p)) removeProp(p); toast('cake: gone'); },3500); return; }
     if(p.type==='bowl'){ if(p.amount<=0){ this.say('empty…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=0; this.play('eat',4); this.say(pick(['nom nom','crunch','😋'])); }
     else if(p.type==='water'){ if(p.amount<=0){ this.say('dry…'); this.releaseProp(); return; } p.amount--; propVisual(p); this.hunger=Math.max(0,this.hunger-0.15); this.play('drink',3); this.say('lap lap'); }
     else if(p.type==='post'){ this.play('scratch',3); this.say(pick(['scritch scritch','scrrrrt'])); }
@@ -401,6 +411,7 @@ function handleChat(user, msg, key, away){
     if(SPECIES_MODE==='mixed') look.species=species;
     for(let i=0;i<parts.length;i++){ const p=parts[i];
       if(p==='eyes' && parts[i+1]){ look.eyes=parts[++i]; continue; }
+      if(p==='spots' && parts[i+1]){ look.spots=parts[++i]; continue; }   // patch colour for spotted / tortie
       if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(SIZES[p]) look.size=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
     if(!cat){ look.body=look.body||SPECIES[look.species].body; cat=spawnCat(key, user, look); note='spawned'; crownCotd(cat); }
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
@@ -447,7 +458,8 @@ function zoomies(cat, secs){
 // ---------- props ----------
 const PROP_ANIMS=['eat','drink','scratch','bat'];
 let props=[];
-function propVisual(p){ if(p.fill){ const k=Math.max(0,p.amount)/6; p.fill.visible=k>0; p.fill.scale.y=Math.max(0.05,k); p.fill.position.y=p.fillY0+ (p.fillH*k)/2 - p.fillH/2; } }
+function propVisual(p){ if(p.type==='cake'){ const k=0.45+0.55*Math.max(0,p.amount)/8; p.mesh.scale.set(k,Math.max(0.5,k),k); }
+  if(p.fill){ const k=Math.max(0,p.amount)/6; p.fill.visible=k>0; p.fill.scale.y=Math.max(0.05,k); p.fill.position.y=p.fillY0+ (p.fillH*k)/2 - p.fillH/2; } }
 function spawnProp(type,x,z){
   const g=new THREE.Group(); g.position.set(x,0,z); scene.add(g);
   const p={type,mesh:g,x,z,r:0.7,users:0};
@@ -461,6 +473,10 @@ function spawnProp(type,x,z){
   if(type==='tree'){ const t=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.5,3,8),mat(0x7a4b2a)); t.position.y=1.5; g.add(t); for(const [x,y,z,r] of [[0,3.6,0,1.6],[-1.1,3.0,0.4,1.1],[1.0,3.2,-0.5,1.2],[0.3,4.4,0.6,1.0]]){ const b=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat(0x5aa14f)); b.position.set(x,y,z); g.add(b); }
     box(g,2.2,0.25,0.5,0x7a4b2a,1.0,2.2,0.3); p.r=1.3; p.h=2.35; p.cap=1; }
   if(type==='perch'){ box(g,0.6,0.25,0.6,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.5,8),mat(0xd8c3a5)); c.position.y=0.9; g.add(c); box(g,2.0,0.18,1.6,0x8b5a3c,0,1.7,0); box(g,1.8,0.08,1.4,0xb9574a,0,1.83,0); p.r=1.0; p.h=1.87; }
+  if(type==='cake'){ box(g,1.7,0.5,1.7,0xf3a6c4,0,0.25,0); box(g,1.75,0.12,1.75,0xfff1f6,0,0.52,0); box(g,1.1,0.42,1.1,0xfff1f6,0,0.78,0); box(g,1.15,0.1,1.15,0xf3a6c4,0,1.0,0);
+    for(const [x,z] of [[-0.3,-0.3],[0.3,-0.3],[0,0.3]]){ box(g,0.08,0.4,0.08,0xffffff,x,1.25,z); const f=box(g,0.14,0.2,0.14,0xffb347,x,1.52,z); f.userData.flame=true; }
+    for(let i=0;i<8;i++) box(g,0.1,0.1,0.1,pick([0xff6b6b,0x7fd6ff,0xffd166,0xb28dff]),Math.cos(i/8*Math.PI*2)*0.75,0.6,Math.sin(i/8*Math.PI*2)*0.75);
+    p.r=0.95; p.cap=6; p.amount=8; p.lit=true; }
   if(type==='toy'){ const b=new THREE.Mesh(new THREE.SphereGeometry(0.35,10,8),mat(pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff]))); b.position.y=0.35; g.add(b); p.ball=b; p.r=0.35; p.vx=0; p.vz=0; }
   propVisual(p); props.push(p); return p;
 }
@@ -510,6 +526,13 @@ const events = {
     const t=box(scene,0.5,0.25,0.12,0xffa64d,f.x,12,f.z); box(t,0.2,0.35,0.1,0xffa64d,-0.32,0,0); t.userData.vy=0; treats.push(t); toast('treat incoming'); },
   boxes(m){ const n=clamp(+m?.n||4,1,6); banner('📦 BOXES!',2000); toast('box drop');
     for(let i=0;i<n;i++) setTimeout(()=>{ const f=freePoint(rnd(-XMAX+1.5,XMAX-1.5), rnd(ZMIN+1,ZMAX-1)); const p=spawnProp('box',f.x,f.z); p.temp=true; p.mesh.position.y=10; p.drop=true; setTimeout(()=>{ if(props.includes(p)) removeProp(p); }, 180000); }, i*350); },
+  birthday(){ const lou=spawnLou(); banner('🎂 HAPPY BIRTHDAY LOU 🎂',5000); toast('birthday girl'); events.confetti();
+    for(const p of [...props]) if(p.type==='cake') removeProp(p);
+    const f=freePoint(0,-0.5); const cake=spawnProp('cake',f.x,f.z); cake.temp=true;
+    let i=0; for(const c of cats.values()){ c.party=true; c.partyUntil=performance.now()+120000; c.build(); if(c!==lou) setTimeout(()=>{ if(!c.dead) c.say(pick(['🎶','happy birthday!','🎉','🎂'])); }, 400+i++*350); }
+    lou.giveUp(); lou.say('me?? 🥹'); setTimeout(()=>{ if(!lou.dead) lou.goTo(cake); }, 800);
+    let j=0; for(const c of cats.values()) if(c!==lou) setTimeout(()=>{ if(!c.dead&&props.includes(cake)&&cake.amount>0){ c.giveUp(); c.goTo(cake); } }, 6000+j++*900);   // everyone shares once she's had the first bite
+  },
   confetti(){ for(let i=0;i<50;i++) setTimeout(()=>{ const f=box(scene,0.25,0.25,0.05,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),rnd(-XMAX,XMAX),11+rnd(0,3),rnd(ZMIN,ZMAX)); f.userData.vy=-rnd(1,2); f.userData.conf=true; f.rotation.set(rnd(0,3),rnd(0,3),0); fishes.push(f); }, i*40); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
   fish(n=14){ for(let i=0;i<n;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
@@ -816,17 +839,17 @@ const director={ timers:[], on:false,
         const cmd=pick(['!meow','!meow','!jump','!zoomies','!lick','!roll','!stretch','!pounce','!hiss','!sleep','!loaf','!wave','!shake','!stalk','!sneak','!spin', other&&other!==who?'!pet @'+other:'!meow', other&&other!==who?'!tackle @'+other:'!jump', other&&other!==who?'!follow @'+other:'!zoomies']);
         handleChat(who, cmd); }
       this.timers.push(setTimeout(chat, rnd(2500,7000))); };
-    const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti']);
+    const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti','birthday']);
       if(name==='race'){ events.race({joinSecs:8}); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!join'); },2000)); }
       else events[name]();
-      this.timers.push(setTimeout(ev, name==='race'?60000:rnd(25000,45000))); };
+      this.timers.push(setTimeout(ev, name==='race'?60000:name==='birthday'?70000:rnd(25000,45000))); };
     chat(); this.timers.push(setTimeout(ev, 12000));
     if(cats.size<6) demoSpawn(6-cats.size);
     this.timers.push(setInterval(()=>{ if(cats.size<7&&Math.random()<0.5) demoSpawn(1); },45000)); },
   stop(){ this.on=false; for(const t of this.timers){ clearTimeout(t); clearInterval(t); } this.timers=[]; } };
 // trailer: scripted beats you can record in OBS
 function trailer(){ const at=(ms,f)=>setTimeout(f,ms);
-  at(0,()=>{ demoSpawn(7); banner('chat cats',2500); });
+  at(0,()=>{ demoSpawn(6); spawnLou(); banner('chat cats',2500); });
   at(4000,()=>{ const n=randomCatName(); if(n) handleChat(n,'!zoomies'); });
   at(6000,()=>{ const a=randomCatName(), b=randomCatName(); if(a&&b&&a!==b) handleChat(a,'!pet @'+b); });
   at(9000,()=>{ events.treat(); });
@@ -847,7 +870,7 @@ addEventListener('message', e=>{ const m=e.data; if(!m||typeof m!=='object') ret
   else if(m.type==='toggleui') document.body.classList.toggle('hidden'); });
 if(window.parent!==window) document.body.classList.add('embedded');   // smaller panels inside the demo page
 if(AUTODEMO||TRAILER){ SPECIES_MODE=q.get('species')||'mixed'; if(!envLocked) setEnv(q.get('env')||'living'); if(!props.length) defaultProps(); document.body.classList.add('hidden'); }
-if(AUTODEMO) setTimeout(()=>director.start(), 300);
+if(AUTODEMO) setTimeout(()=>{ spawnLou(); director.start(); }, 300);
 if(TRAILER) setTimeout(trailer, 500);
 
 // ---------- minigames ----------
@@ -889,6 +912,10 @@ race.finish=function(c){ if(this.finished.includes(c)) return; this.finished.pus
 race.end=function(){ if(this.phase==='idle') return; const hadWinner=!!this.winner; this.phase='idle';
   for(const c of this.racers){ c.racing=false; c.noCollide=false; if(!c.dead&&c.state==='walk'){ c.target=null; c.onArrive=null; c.setState('idle'); c.timer=rnd(1,3); } }
   if(this.butterfly){ scene.remove(this.butterfly); this.butterfly=null; } if(!hadWinner) net.send({type:'race',phase:'cancel'}); banner(''); };
+// Lou: the birthday girl. A dilute tortie — blue-grey with orange patches, a split forehead, one patched paw.
+const LOU={key:'special:lou', name:'Lou', look:{species:'cat', body:'dilute', pattern:'tortie', spots:'orange', eyes:'amber', size:'adult', hat:'none'}};
+function spawnLou(){ let c=cats.get(LOU.key); if(!c||c.dead){ c=spawnCat(LOU.key, LOU.name, {...LOU.look}, true); c.say('hi 💕'); net.send({type:'cat', key:LOU.key, name:LOU.name, look:c.look}); } return c; }
+function confettiBurst(){ for(let i=0;i<24;i++) setTimeout(()=>{ const f=box(scene,0.22,0.22,0.05,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),rnd(-3,3),4+rnd(0,2),rnd(-2,1)); f.userData.vy=rnd(1,3); f.userData.conf=true; f.rotation.set(rnd(0,3),rnd(0,3),0); fishes.push(f); }, i*30); }
 function spawnButterfly(){ const g=new THREE.Group(); box(g,0.02,0.3,0.4,0xffd166,0,0,-0.2); box(g,0.02,0.3,0.4,0xffd166,0,0,0.2); box(g,0.08,0.08,0.3,0x333333,0,0,0); scene.add(g); return g; }
 
 // treats on the ground: whoever gets there first eats it; losers and idle cats keep an eye out for the rest

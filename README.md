@@ -70,6 +70,10 @@ If Twitch is connected with the predictions scope, each race opens a 30-second T
 
 The server counts per day: chat commands, unique chatters, streamer events, and minutes an overlay was connected. Admin page, or `GET /api/usage?days=14`. That's the number that tells you whether chat actually plays with it.
 
+## Lou and the birthday girl button
+
+Lou is a dilute tortie (blue-grey with orange patches, split forehead, one patched paw) who lives on the demo and appears whenever you press **🎂 Birthday girl** (streamer panel, admin page, `/api/event/birthday`). A cake with candles arrives, everyone puts on party hats and sings, Lou gets to it first and blows out the candles, then the whole crowd shares the cake until it's gone. Anyone can be a tortie: `!cat dilute tortie spots orange`, or `!cat gray spotted spots orange`.
+
 ## Leaderboards and cat of the day
 
 Cozy, not competitive: most naps, most pets given, most zoomies, race wins, most booped on the companion page. `GET /api/leaderboard?n=5` or the admin page. One cat seen in the last week is picked as cat of the day (fixed per calendar day); its name tag glows gold.
