@@ -7,6 +7,7 @@
 <meta name="description" content="Voxel cats (and dogs, raccoons, otters) on your stream that chat spawns, styles and bosses around. Made for starting-soon, BRB and just-chatting screens.">
 <link rel="stylesheet" href="style.css">
 <style>
+  kbd{background:#3a3150;border-radius:6px;padding:1px 7px;font-family:inherit;border:1px solid #5a4f78}
   html,body{overflow:auto;height:auto;background:#1d1a2a;color:#f3ecdf}
   body{font-family:var(--font);margin:0}
   .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
@@ -37,59 +38,14 @@
   <p class="sub">A stream overlay that gives chat something to do while you're starting up, AFK or just chatting. Viewers type <b>!cat</b> and get a little voxel cat that lives on your stream: it eats, naps, picks friends and rivals, sneaks up on people, races, and gets into boxes. Dogs, raccoons and otters too.</p>
 
   <div class="stage"><iframe id="ov" src="index.html?ui=0&ws=0&autodemo=1&env=living" title="live demo" allow="autoplay"></iframe></div>
-  <div class="row"><span class="pill">live demo · fake chat is typing</span><span class="pill">everything you see is driven by chat commands</span></div>
-
-  <div class="row" style="align-items:flex-start">
-    <div class="panel" style="flex:1;min-width:320px">
-      <h2>Be a chatter</h2>
-      <div class="row" style="margin-top:0">
-        <input class="user" type="text" id="user" value="you" aria-label="username" style="width:90px">
-        <input class="msg" type="text" id="msg" placeholder="!cat orange crown" aria-label="chat message" style="flex:1;min-width:160px">
-        <button id="send">Send</button>
-      </div>
-      <div class="row">
-        <button data-m="!cat">!cat</button><button data-m="!dog spotted">!dog spotted</button><button data-m="!raccoon">!raccoon</button><button data-m="!otter fat">!otter fat</button>
-        <button data-m="!meow">!meow</button><button data-m="!zoomies">!zoomies</button><button data-m="!sneak">!sneak</button><button data-m="!stalk">!stalk</button><button data-m="!lick">!lick</button><button data-m="!sleep">!sleep</button>
-      </div>
-      <div class="hint">!cat [color] [pattern] [hat] [size] eyes &lt;color&gt; · colors orange black white gray pink brown cream blue purple mint golden · patterns tabby tuxedo calico spotted · hats crown beanie party bow halo · sizes kitten skinny fat</div>
-    </div>
-    <div class="panel" style="min-width:280px">
-      <h2>Streamer buttons</h2>
-      <div class="row" style="margin-top:0">
-        <button class="ev" data-ev="race">Race</button><button class="ev" data-ev="treat">Treat</button><button class="ev" data-ev="boxes">Box drop</button><button class="ev" data-ev="feeding">Feeding</button>
-        <button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="wrestlemania">Wrestlemania</button>
-      </div>
-      <div class="row">
-        <label>room <select id="env"><option value="living">living room</option><option value="bedroom">bedroom</option><option value="kitchen">kitchen</option><option value="garden">garden</option><option value="none">none (transparent overlay)</option></select></label>
-        <label>animals <select id="species"><option value="mixed">mixed</option><option value="cat">cats</option><option value="dog">dogs</option><option value="raccoon">raccoons</option><option value="otter">otters</option></select></label>
-        <label><input type="checkbox" id="auto" checked> fake chat</label>
-      </div>
-    </div>
-  </div>
-  <div id="feed" style="margin-top:12px"></div>
-
-  <div class="grid">
-    <div class="card"><h3>Made for dead air</h3><p>Starting-soon, BRB, and just-chatting screens where your face is small and the scene is the content. Chat keeps itself busy; you don't have to run it.</p></div>
-    <div class="card"><h3>They have opinions</h3><p>Every animal gets a secret personality and secret likes and dislikes. Friends hang out and share bowls; rivals hiss, stalk each other, and fight over food. Nobody configures it.</p></div>
-    <div class="card"><h3>Chat plays</h3><p>!cat to spawn and style, !pet, !sneak, !tackle, !race with !join, !name, !afk. Twitch and Kick chat, no bot account needed.</p></div>
-    <div class="card"><h3>You run events</h3><p>Race with Twitch Predictions, feeding time, treat cannon, box drop, vacuum, doorbell, cucumber. Buttons, Stream Deck URLs, or channel point rewards.</p></div>
-    <div class="card"><h3>Subs, bits, raids</h3><p>Subs get a party hat and confetti, bits rain fish, a raid drops a crate of boxes and a crew of visitor cats.</p></div>
-    <div class="card"><h3>Rooms and species</h3><p>Bedroom, kitchen, living room, garden, or a transparent overlay on top of your own scene. Cats, dogs, raccoons, otters, or all at once.</p></div>
-  </div>
+  <p class="sub" style="margin-top:14px;font-size:16px"><b>Click the scene and press <kbd>H</kbd></b> to show the controls and play around: spawn your own animal, type commands as a chatter, fire the streamer events, switch rooms. Fake chat keeps things moving in the meantime.</p>
 
   <p class="foot">Runs as an OBS browser source from a small Node server on your PC (or one I host for you while it's in pilot). Persistent cats, cooldowns, no-go zones for your webcam, a companion page viewers can click on. Interested in trying it on your stream? <a href="https://github.com/xBombjackx/chat-cats/issues/new?title=I%20want%20to%20try%20Chat%20Cats%20on%20my%20stream">Get in touch</a> (opens a GitHub issue) or <a href="https://github.com/xBombjackx/chat-cats">see the code</a> — I'll set it up with you.</p>
 </div>
 <script>
-  const $=s=>document.querySelector(s), ov=$('#ov'), feed=$('#feed');
-  const send=o=>ov.contentWindow&&ov.contentWindow.postMessage(o,'*');
-  $('#send').onclick=()=>{ const m=$('#msg').value.trim(); if(!m) return; send({type:'chat',user:$('#user').value.trim()||'you',msg:m}); $('#msg').value=''; };
-  $('#msg').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#send').click(); });
-  document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>send({type:'chat',user:$('#user').value.trim()||'you',msg:b.dataset.m}));
-  document.querySelectorAll('[data-ev]').forEach(b=>b.onclick=()=>send({type:'event',name:b.dataset.ev}));
-  $('#env').onchange=e=>send({type:'env',env:e.target.value});
-  $('#species').onchange=e=>send({type:'species',species:e.target.value});
-  $('#auto').onchange=e=>send({type:'director',on:e.target.checked});
-  addEventListener('message',e=>{ const m=e.data; if(!m||m.type!=='log') return; const d=document.createElement('div'); d.innerHTML='<b></b> <span></span> <span class="note"></span>'; const [u,t,n]=d.children; u.textContent=m.user+':'; t.textContent=m.msg; n.textContent=m.note?'— '+m.note:''; feed.prepend(d); while(feed.children.length>40) feed.lastChild.remove(); });
+  const ov=document.getElementById('ov');
+  ov.addEventListener('load',()=>{ try{ ov.contentWindow.focus(); }catch{} });
+  addEventListener('keydown',e=>{ if(e.key==='h'||e.key==='H'){ try{ ov.contentWindow.postMessage({type:'toggleui'},'*'); }catch{} } });   // H works even if the page, not the frame, has focus
 </script>
 </body>
 </html>

@@ -843,7 +843,8 @@ addEventListener('message', e=>{ const m=e.data; if(!m||typeof m!=='object') ret
   else if(m.type==='event' && events[m.name]) events[m.name](m);
   else if(m.type==='env') setEnv(m.env);
   else if(m.type==='species' && (SPECIES[m.species]||m.species==='mixed')) SPECIES_MODE=m.species;
-  else if(m.type==='director') m.on?director.start():director.stop(); });
+  else if(m.type==='director') m.on?director.start():director.stop();
+  else if(m.type==='toggleui') document.body.classList.toggle('hidden'); });
 if(AUTODEMO||TRAILER){ SPECIES_MODE=q.get('species')||'mixed'; if(!envLocked) setEnv(q.get('env')||'living'); if(!props.length) defaultProps(); document.body.classList.add('hidden'); }
 if(AUTODEMO) setTimeout(()=>director.start(), 300);
 if(TRAILER) setTimeout(trailer, 500);
