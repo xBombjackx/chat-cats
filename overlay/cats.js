@@ -10,7 +10,7 @@ const ZOOM=Math.max(0.5,Math.min(2.5,+(new URLSearchParams(location.search).get(
 function fitCamera(){ const aspect=innerWidth/innerHeight, half=Math.tan(camera.fov/2*Math.PI/180)*aspect, d0=Math.hypot(CAM0.x-LOOK.x,CAM0.y-LOOK.y,CAM0.z-LOOK.z);
   const k=Math.max(1,(XMAX+2.5)/half/(d0-6))*ZOOM;   // width needed at the near edge of the stage
   camera.position.set(LOOK.x+(CAM0.x-LOOK.x)*k, LOOK.y+(CAM0.y-LOOK.y)*k, LOOK.z+(CAM0.z-LOOK.z)*k); camera.lookAt(LOOK.x,LOOK.y,LOOK.z); }
-scene.add(new THREE.HemisphereLight(0xfff4e0, 0x6b5a7a, 0.9));
+const hemi = new THREE.HemisphereLight(0xfff4e0, 0x6b5a7a, 0.9); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.8); sun.position.set(5, 10, 6); scene.add(sun);
 const XMAX = 11; let ZMIN = -7, ZMAX = 3;   // depth: ZMIN is far, ZMAX is near the viewer
 const PLAY = new URLSearchParams(location.search).get('mode')==='play';   // companion page: mirrors the overlay, no AI of its own
@@ -22,6 +22,7 @@ const COLORS = {orange:0xf28c38, ginger:0xf28c38, black:0x2b2b33, white:0xf5f1ea
   pink:0xf5a3c7, brown:0x7a4b2a, cream:0xf1dfb8, golden:0xd9a441, tan:0xc9a06a, silver:0xb8bcc4, dilute:0x9fa4b0, peach:0xf5c6a0, blue:0x7aa6d9, purple:0xa98bd6, mint:0x9fd6b5, tortie:0x6b3a1e};
 const EYES = {green:0x5fd36a, blue:0x5aa9ff, yellow:0xffd54a, amber:0xffa62b, pink:0xff7bd1, red:0xff5252, gold:0xffd54a};
 const HATS = ['none','crown','beanie','party','bow','halo'];
+const ACCS = ['collar','glasses','scarf','wings','backpack','bowtie','noacc'];   // one accessory; 'noacc' clears it
 const PATTERNS = ['solid','tabby','tuxedo','calico','spotted','patch','tortie'];
 // personality: multipliers on the idle AI. Picked from the key hash like everything else secret.
 const TRAITS = { chill:{}, lazy:{walk:0.5,scrap:0.5,zoom:0,follow:0.7,ambush:0.5,sleep:1.7,speed:0.85,sit:1.6},
@@ -152,6 +153,16 @@ class Cat {
     if(hat==='beanie'){ box(h,1.2,0.35,1.15,0x6c8ed6,0,0.15,0); box(h,0.9,0.28,0.85,0x6c8ed6,0,0.45,0); box(h,0.32,0.32,0.32,white,0,0.72,0); }
     if(hat==='party'){ const cone=new THREE.Mesh(new THREE.ConeGeometry(0.34,0.8,6),mat(0xff7bd1)); cone.position.set(0.15,0.42,0.25); cone.rotation.z=-0.2; h.add(cone); box(h,0.2,0.2,0.2,0xffd23f,0.22,0.87,0.25); }
     if(hat==='bow'){ box(h,0.3,0.28,0.3,0xff4d6d,0.1,0.1,0.5); box(h,0.28,0.4,0.28,0xff4d6d,-0.14,0.12,0.5); box(h,0.28,0.4,0.28,0xff4d6d,0.34,0.12,0.5); }
+    // accessory (shared, anchored on headPos / body)
+    const acc=L.acc||'none', hp=this.headPos, neckY=hp.y-0.7, neckX=hp.x+0.2;   // under the chin, wide enough to peek past the big head from the front
+    if(acc==='collar'){ box(b,0.7,0.14,1.34,0xd6283c,neckX,neckY,0); box(b,0.1,0.18,0.14,0xffd23f,hp.x+0.62,neckY-0.14,0); }
+    if(acc==='scarf'){ box(b,0.74,0.24,1.38,0xe0563b,neckX,neckY+0.02,0); box(b,0.22,0.62,0.24,0xe0563b,hp.x+0.5,neckY-0.32,0.62); box(b,0.22,0.4,0.24,0xc94a30,hp.x+0.55,neckY-0.6,0.64); }
+    if(acc==='bowtie'){ box(b,0.14,0.24,0.24,0x2b2b33,hp.x+0.6,neckY-0.06,-0.17); box(b,0.14,0.24,0.24,0x2b2b33,hp.x+0.6,neckY-0.06,0.17); box(b,0.16,0.14,0.14,0xd6283c,hp.x+0.61,neckY-0.06,0); }
+    if(acc==='glasses'){ for(const eg of this.eyes){ const p=eg.position; const lens=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.4,0.4),new THREE.MeshLambertMaterial({color:0x8ad0ff,transparent:true,opacity:0.35})); lens.position.set(p.x+0.08,p.y,p.z); h.parent.add(lens);
+        box(h.parent,0.05,0.44,0.05,0x222222,p.x+0.08,p.y,p.z-0.2); box(h.parent,0.05,0.44,0.05,0x222222,p.x+0.08,p.y,p.z+0.2); box(h.parent,0.05,0.05,0.4,0x222222,p.x+0.08,p.y+0.2,p.z); box(h.parent,0.05,0.05,0.4,0x222222,p.x+0.08,p.y-0.2,p.z); }
+      const e0=this.eyes[0].position, e1=this.eyes[1].position; box(h.parent,0.05,0.05,Math.abs(e1.z-e0.z)-0.4,0x222222,e0.x+0.08,e0.y,(e0.z+e1.z)/2); }
+    if(acc==='wings'){ for(const z of [-1,1]){ const w=box(b,0.12,0.9,0.5,0xfafafa,-0.2,1.25,z*0.55); w.rotation.x=z*0.7; w.rotation.z=0.35; const w2=box(b,0.12,0.6,0.4,0xfafafa,-0.25,1.05,z*0.8); w2.rotation.x=z*0.9; w2.rotation.z=0.2; } }
+    if(acc==='backpack'){ box(b,0.6,0.55,0.62,0x4b7bd6,-0.35,1.15,0); box(b,0.62,0.18,0.64,0x2f57a6,-0.35,1.35,0); box(b,0.08,0.4,0.1,0x2f57a6,0.0,1.05,-0.3); box(b,0.08,0.4,0.1,0x2f57a6,0.0,1.05,0.3); }
     if(hat==='halo'){ const r=new THREE.Mesh(new THREE.TorusGeometry(0.55,0.07,8,24),new THREE.MeshLambertMaterial({color:0xffe28a,emissive:0x8a6a00})); r.rotation.x=Math.PI/2; r.position.y=0.55; h.add(r); }
     // shadow blob
     this.shadow = new THREE.Mesh(new THREE.CircleGeometry(0.85,20), new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.22}));
@@ -343,6 +354,9 @@ class Cat {
       const bowls=props.filter(p=>p.type==='bowl'), full=bowls.filter(p=>p.amount>0&&p.users<1);
       if(full.length){ this.goTo(pick(full)); return; }
       if(bowls.length && Math.random()<0.5){ const b=pick(bowls); this.walkTo(b.x+rnd(-1.5,1.5), Math.min(ZMAX,b.z+1.6)); this.onArrive=()=>{ this.facing=-Math.PI/2; this.play('peek',2.5); this.say(pick(['feed me','bowl is empty 😾','hungry…','🍽️👀'])); }; return; } }
+    if(Math.random()<0.3*T.sleep){   // nap pile: curl up next to a sleeping friend (or anyone, sometimes)
+      const z=near(this,10,c=>c.state==='sleep'&&!c.onProp&&(isFriend(this,c)||Math.random()<0.3)); if(z){ const a=rnd(0,Math.PI*2), f=freePoint(z.g.position.x+Math.cos(a)*1.35, z.g.position.z+Math.sin(a)*1.35);
+        this.walkTo(f.x,f.z,2); this.onArrive=()=>{ if(!z.dead&&z.state==='sleep'){ faceAt(this,z); this.setState('sleep'); this.timer=rnd(8,14)*T.sleep; if(Math.random()<0.4) this.say('💤'); } }; return; } }
     if(props.length && Math.random()<0.4){
       const game=props.find(p=>p.type==='toy'&&p.users>0&&p.users<3); if(game && Math.random()<0.6*T.ball){ this.goTo(game); return; }   // someone's playing — join in
       const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
@@ -356,7 +370,7 @@ class Cat {
       const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
         if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
     const rv=near(this,3,c=>isRival(this,c)); if(rv && Math.random()<0.5){ const dx=this.g.position.x-rv.g.position.x, dz=this.g.position.z-rv.g.position.z, d=Math.hypot(dx,dz)||1; this.say(pick(['hmph','…'])); this.walkTo(this.g.position.x+dx/d*4, this.g.position.z+dz/d*3); return; }   // not sitting next to *that* one
-    const pool=[['walk',0.45*T.walk],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',0.08*T.sleep],['sleep',0.03*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom]];
+    const pool=[['walk',0.45*T.walk*(1-0.5*NIGHT)],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',(0.08+0.1*NIGHT)*T.sleep],['sleep',(0.03+0.15*NIGHT)*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom]];
     let r=Math.random()*pool.reduce((a,[,w])=>a+w,0), act='walk'; for(const [a,w] of pool){ r-=w; if(r<=0){ act=a; break; } }
     switch(act){
       case 'walk': this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4)); break;
@@ -412,6 +426,7 @@ function handleChat(user, msg, key, away){
     for(let i=0;i<parts.length;i++){ const p=parts[i];
       if(p==='eyes' && parts[i+1]){ look.eyes=parts[++i]; continue; }
       if(p==='spots' && parts[i+1]){ look.spots=parts[++i]; continue; }   // patch colour for spotted / tortie
+      if(ACCS.includes(p)){ look.acc=p==='noacc'?'none':p; continue; }
       if(HATS.includes(p)) look.hat=p; else if(PATTERNS.includes(p)) look.pattern=p; else if(SIZES[p]) look.size=p; else if(parseColor(p,COLORS)!=null) look.body=p; }
     if(!cat){ look.body=look.body||SPECIES[look.species].body; cat=spawnCat(key, user, look); note='spawned'; crownCotd(cat); }
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
@@ -490,7 +505,7 @@ canvas.addEventListener('pointerdown',e=>{ if(!placing) return; ray.setFromCamer
 addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.body.style.cursor=''; } });
 
 // ---------- streamer events ----------
-let laser=null, fishes=[], busy=false, vac=null, treats=[];
+let laser=null, fishes=[], busy=false, vac=null, treats=[]; const weather={kind:null,t0:0};
 function refuge(c){ let best=null, bd=40; for(const p of props){ if(!(p.h>0||p.type==='box')||p.users>=(p.cap||1)) continue; const d=Math.hypot(p.x-c.g.position.x,p.z-c.g.position.z); if(d<bd){ bd=d; best=p; } } return best; }
 function removeProp(p){ for(const c of cats.values()){ if(c.onProp===p) c.dismountNow(); if(c.prop===p) c.releaseProp(); } scene.remove(p.mesh); props=props.filter(x=>x!==p); }
 const events = {
@@ -508,7 +523,9 @@ const events = {
     for(const c of cats.values()){ if(c.onProp){ if(c.inBox) c.hiding=true; c.say(pick(['👀','…'])); continue; } c.giveUp(); c.say(pick(['!!','😱','NOPE','hss'])); c.play('arch',0.5);
       setTimeout(()=>{ if(c.dead||!vac) return; const spot=refuge(c); if(spot){ c.goTo(spot); c.say(pick(['up!','hide!','📦'])); }   // get off the floor if anything's free
         else { const away=c.g.position.z<z?ZMIN+0.5:ZMAX-0.5; c.walkTo(c.g.position.x+rnd(-3,3), away, 6); c.onArrive=()=>{ if(vac){ c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+9}; c.play('arch',1.0); c.timer=9; } }; } }, rnd(100,600)); }
-    setTimeout(()=>{ if(vac){ scene.remove(vac.mesh); vac=null; } for(const c of cats.values()) if(!c.dead&&Math.random()<0.5) c.say(pick(['…','phew','😾'])); }, 9500); },
+    setTimeout(()=>{ if(!vac) return; const r=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.riding&&(c.trait==='zoomy'||c.trait==='chill')&&Math.hypot(c.g.position.x-vac.mesh.position.x,c.g.position.z-vac.mesh.position.z)<7);   // one brave one hops on for a ride
+      if(r.length&&Math.random()<0.7){ const c=pick(r); c.giveUp(); c.riding=true; c.noCollide=true; c.elev=0.35; c.setState('sit'); c.timer=99; c.say(pick(['wheee','🤖🐾','taxi!'])); } }, 2200);
+    setTimeout(()=>{ if(vac){ scene.remove(vac.mesh); vac=null; } for(const c of cats.values()){ if(c.riding){ c.riding=false; c.noCollide=false; c.elev=0; c.g.position.y=0; c.g.position.x=clamp(c.g.position.x,-XMAX,XMAX); c.say('again!'); c.giveUp(); } else if(!c.dead&&Math.random()<0.5) c.say(pick(['…','phew','😾'])); } }, 9500); },
   doorbell(){ banner('🔔 ding dong',2000); toast('doorbell');
     for(const c of cats.values()){ if(c.onProp){ c.say('👀'); continue; } c.giveUp(); c.say(pick(['!!','who?','😨'])); const side=c.g.position.x<0?-1:1; c.walkTo(side*(XMAX-0.3), ZMIN+rnd(0.3,1.5), 5.5); c.onArrive=()=>{ c.facing=-Math.PI/2; c.setState('sit'); c.timer=rnd(5,8); }; }
     setTimeout(()=>{ let i=0; for(const c of cats.values()){ if(c.onProp) continue; setTimeout(()=>{ if(c.dead) return; c.giveUp(); c.facing=Math.atan2(-((ZMIN+ZMAX)/2-c.g.position.z), rnd(-4,4)-c.g.position.x); c.play('stalk',2.6);   // creep back one by one
@@ -533,6 +550,10 @@ const events = {
     lou.giveUp(); lou.say('me?? 🥹'); setTimeout(()=>{ if(!lou.dead) lou.goTo(cake); }, 800);
     let j=0; for(const c of cats.values()) if(c!==lou) setTimeout(()=>{ if(!c.dead&&props.includes(cake)&&cake.amount>0){ c.giveUp(); c.goTo(cake); } }, 6000+j++*900);   // everyone shares once she's had the first bite
   },
+  weather(m){ const kind=m?.kind||pick(['rain','snow']); if(weather.kind) return; weather.kind=kind; weather.t0=performance.now(); banner(kind==='rain'?'🌧️ RAIN':'❄️ SNOW',2500); toast('weather: '+kind);
+    if(kind==='rain'){ for(const c of cats.values()){ if(c.onProp){ if(c.inBox) c.hiding=true; continue; } c.giveUp(); c.say(pick(['!!','wet','😾','nope'])); setTimeout(()=>{ if(c.dead||!weather.kind) return; const spot=refuge(c); if(spot){ c.goTo(spot); } else { c.walkTo(c.g.position.x+rnd(-2,2), ZMIN+rnd(0.3,1.2), 5); c.onArrive=()=>{ c.setState('loaf'); c.timer=20; }; } }, rnd(100,900)); } }
+    else { let i=0; for(const c of cats.values()){ if(c.onProp) continue; setTimeout(()=>{ if(c.dead) return; c.giveUp(); c.say(pick(['❄️','!!','snow!','🐾'])); if(Math.random()<0.5) zoomies(c,4); else { c.play('roll',1.2); } }, i++*300); } }
+    setTimeout(()=>{ weather.kind=null; for(const c of cats.values()) if(!c.dead&&Math.random()<0.4) c.say(pick(['…','phew','☀️'])); }, 40000); },
   confetti(){ for(let i=0;i<50;i++) setTimeout(()=>{ const f=box(scene,0.25,0.25,0.05,pick([0xff6b6b,0xffd166,0x7fd6ff,0xb28dff,0x9fd6b5]),rnd(-XMAX,XMAX),11+rnd(0,3),rnd(ZMIN,ZMAX)); f.userData.vy=-rnd(1,2); f.userData.conf=true; f.rotation.set(rnd(0,3),rnd(0,3),0); fishes.push(f); }, i*40); },
   nap(){ for(const c of cats.values()){ c.target=null; c.setState('sleep'); c.timer=rnd(8,12); } },
   fish(n=14){ for(let i=0;i<n;i++){ setTimeout(()=>{ const f=box(scene,0.6,0.3,0.12,pick([0x6cc4ff,0xffa64d,0xb6e36b]),rnd(-XMAX,XMAX),13,rnd(ZMIN,ZMAX)); box(f,0.25,0.4,0.1,f.material.color.getHex(),-0.38,0,0); f.userData.vy=0; f.rotation.z=rnd(-0.5,0.5); fishes.push(f); }, i*220); }
@@ -710,7 +731,14 @@ function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&
     for(let i=0;i<14;i++){ const x=rnd(-W+1,W-1), z=rnd(ZB+1,ZB+2.2); box(g,0.08,0.5,0.08,0x3f9b3f,x,0.25,z); box(g,0.3,0.25,0.3,pick([0xff6b6b,0xffd166,0xff9ecf,0xffffff]),x,0.55,z); }
     furn('tree',8.5,-6); solid(1.6,0.35,1.6,0x8a8f96,-8,0.17,-7.5); solid(1.2,0.3,1.2,0x9aa0a8,-6.3,0.15,-8.2); }
 }
-// ---------- no-go zones ----------
+// ---------- day / night ----------
+// real clock (or ?time=HH). Night dims the lights and makes everyone sleepier. Off unless the server setting or ?daynight=1 says so.
+let DAYNIGHT=q.get('daynight')==='1', NIGHT=0;
+function applyTimeOfDay(){ const h=q.get('time')!=null?+q.get('time'):(new Date().getHours()+new Date().getMinutes()/60);
+  NIGHT = !DAYNIGHT ? 0 : h>=22||h<6 ? 1 : h>=20 ? (h-20)/2 : h<7.5 ? 1-(h-6)/1.5 : 0;   // 0 day … 1 night, dusk 20-22, dawn 6-7:30
+  hemi.intensity=0.9-0.55*NIGHT; sun.intensity=0.8-0.55*NIGHT; hemi.color.setHex(NIGHT>0.5?0xb9c6ff:0xfff4e0); sun.color.setHex(NIGHT>0.5?0x9fb3ff:0xffffff);
+  document.body.classList.toggle('night', NIGHT>0.5); }
+setInterval(applyTimeOfDay, 60000);
 // Screen-space rects (fractions of the viewport — the webcam, alerts box…) turned into floor-space convex polygons.
 // Top edge unprojects at foot level, bottom edge at head height, so a cat can't poke its head up into the rect.
 let zones=[], zoneQuads=[], zonesLocked=false;   // locked = came from ?nogo=, server can't override
@@ -761,7 +789,15 @@ addEventListener('resize', rebuildZones);
 // ?nogo=x,y,w,h;x,y,w,h  (fractions, or percentages if any value > 1)   ?zones=1 shows them even in overlay mode
 if(q.get('nogo')){ zones=q.get('nogo').split(';').map(s=>{ let [x,y,w,h]=s.split(',').map(Number); if([x,y,w,h].some(v=>v>1)){ x/=100;y/=100;w/=100;h/=100; } return {x,y,w,h}; }).filter(r=>[r.x,r.y,r.w,r.h].every(Number.isFinite)); zonesLocked=true; }
 if(q.get('zones')==='1') document.body.classList.add('showzones');
+applyTimeOfDay();
 if(q.get('env')){ envLocked=true; setEnv(q.get('env')); }
+// full settings on the overlay panel (needs the server; the demo just applies the cat cap locally)
+(function(){ const F=['maxCats','cooldownMs','respawnHours'], key=q.get('key')||''; const el=id=>document.getElementById(id);
+  const show=s=>{ for(const k of F) el('s-'+k).value=s[k]; el('s-predictions').checked=!!s.predictions; el('s-daynight').checked=!!s.daynight; el('s-note').textContent='saved on the server'; };
+  fetch('/api/settings',{headers:{'x-key':key}}).then(r=>r.ok?r.json():Promise.reject()).then(show).catch(()=>{ el('s-note').textContent='no server here — only the cat cap applies, locally'; });
+  el('savesettings').onclick=async()=>{ const body={predictions:el('s-predictions').checked?1:0, daynight:el('s-daynight').checked?1:0}; for(const k of F) body[k]=+el('s-'+k).value;
+    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay();
+    try{ const r=await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':key},body:JSON.stringify(body)}); if(r.ok){ show(await r.json()); toast('settings saved'); } else throw 0; }catch{ el('s-note').textContent='applied locally (no server)'; } }; })();
 document.querySelectorAll('[data-species]').forEach(b=>b.onclick=()=>{ SPECIES_MODE=b.dataset.species; toast('animals: '+b.dataset.species); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({species:b.dataset.species})}).catch(()=>{}); });
 document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
 rebuildZones();
@@ -807,6 +843,7 @@ function applyInit(m){
   if(m.maxCats) MAX_CATS=m.maxCats;
   if(!envLocked && m.env) setEnv(m.env);
   if(m.species) SPECIES_MODE=m.species;
+  if(m.daynight!=null && q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); }
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(booted){   // reconnect (server restart, wifi blip): keep everything that's on stage, only add what we're missing
@@ -949,17 +986,19 @@ function frame(now){
   for(const c of cats.values()) c.update(dt,t);
   race.update(dt,t);
   if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
-  for(const f of fishes){ const conf=f.userData.conf; f.userData.vy-=(conf?3:25)*dt; if(conf) f.userData.vy=Math.max(f.userData.vy,-2.5); f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(conf){ f.rotation.x+=dt*4; f.position.x+=Math.sin(t*3+f.position.z)*dt*1.2; } if(f.position.y<(conf?0.03:0.6)){ scene.remove(f); f.userData.gone=true; } }
+  for(const f of fishes){ const conf=f.userData.conf; f.userData.vy-=(conf?3:25)*dt; if(conf) f.userData.vy=Math.max(f.userData.vy,f.userData.rain?-16:-2.5); f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(conf){ f.rotation.x+=dt*4; f.position.x+=Math.sin(t*3+f.position.z)*dt*1.2; } if(f.position.y<(conf?0.03:0.6)){ scene.remove(f); f.userData.gone=true; } }
   fishes=fishes.filter(f=>!f.userData.gone);
   if(vac){ const k=(now-vac.t0)/1000; vac.mesh.position.x=-XMAX-2+k*(2*XMAX+4)/8.5; vac.mesh.rotation.y+=dt*4;
     for(const c of cats.values()) if(c.onProp&&!c.inBox&&!c.anim) c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:t+0.5};
-    for(const c of cats.values()){ const dx=c.g.position.x-vac.mesh.position.x, dz=c.g.position.z-vac.mesh.position.z, d=Math.hypot(dx,dz); if(d<1.7&&d>1e-3&&!c.onProp){ c.g.position.x=clamp(c.g.position.x+dx/d*(1.7-d),-XMAX,XMAX); c.g.position.z=clamp(c.g.position.z+dz/d*(1.7-d),ZMIN,ZMAX); if(c.state!=='walk'){ c.giveUp(); c.walkTo(c.g.position.x+dx/d*3, c.g.position.z+dz/d*3, 6); c.say('!!'); } } } }
+    for(const c of cats.values()) if(c.riding){ c.g.position.x=vac.mesh.position.x; c.g.position.z=vac.mesh.position.z; c.g.position.y=0.35; c.facing=0; }
+    for(const c of cats.values()){ const dx=c.g.position.x-vac.mesh.position.x, dz=c.g.position.z-vac.mesh.position.z, d=Math.hypot(dx,dz); if(d<1.7&&d>1e-3&&!c.onProp&&!c.riding){ c.g.position.x=clamp(c.g.position.x+dx/d*(1.7-d),-XMAX,XMAX); c.g.position.z=clamp(c.g.position.z+dz/d*(1.7-d),ZMIN,ZMAX); if(c.state!=='walk'){ c.giveUp(); c.walkTo(c.g.position.x+dx/d*3, c.g.position.z+dz/d*3, 6); c.say('!!'); } } } }
   for(const tr of treats){ if(tr.position.y>0.15){ tr.userData.vy-=25*dt; tr.position.y=Math.max(0.15,tr.position.y+tr.userData.vy*dt); tr.rotation.y+=dt*4; if(tr.position.y<=0.15){ tr.userData.landed=t;
       const near4=[...cats.values()].filter(c=>!c.dead).sort((a,b)=>Math.hypot(a.g.position.x-tr.position.x,a.g.position.z-tr.position.z)-Math.hypot(b.g.position.x-tr.position.x,b.g.position.z-tr.position.z)).slice(0,4);
       for(const c of near4){ c.say(pick(['!','treat!','MINE'])); claimTreat(c,tr); } } }
     else if(!tr.userData.gone){ if(t-tr.userData.landed>60){ tr.userData.gone=true; scene.remove(tr); }
       else for(const c of cats.values()) if(!c.dead&&!c.onProp&&!c.anim&&Math.hypot(c.g.position.x-tr.position.x,c.g.position.z-tr.position.z)<1.1){ eatTreat(c,tr); break; } } }   // walked right over one
-  treats=treats.filter(tr=>!tr.userData.gone);  for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
+  treats=treats.filter(tr=>!tr.userData.gone);  if(weather.kind && Math.random()<(weather.kind==='rain'?0.9:0.5)){ const rain=weather.kind==='rain'; const f=box(scene,rain?0.05:0.18,rain?0.5:0.18,rain?0.05:0.05,rain?0x8fc7ff:0xffffff,rnd(-XMAX-3,XMAX+3),10+rnd(0,3),rnd(ZMIN-3,ZMAX+3)); f.userData.vy=rain?-14:-1.2; f.userData.conf=true; f.userData.rain=rain; fishes.push(f); }
+  for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
   renderer.render(scene,camera); requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

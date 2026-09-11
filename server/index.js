@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'refill', 'clearprops', 'clearcats'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'refill', 'clearprops', 'clearcats'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -27,7 +27,7 @@ let oauthState = null;
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
 const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
 // settings: .env gives defaults, /admin can change them live (stored in sqlite)
-const DEFAULTS = { predictions: +env('PREDICTIONS', 1), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
+const DEFAULTS = { predictions: +env('PREDICTIONS', 1), daynight: +env('DAYNIGHT', 0), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
 cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
@@ -38,7 +38,7 @@ function setSettings(patch) {
   if (ENVS.includes(patch.env)) cfg.env = patch.env;
   if (SPECIES_MODES.includes(patch.species)) cfg.species = patch.species;
   db.set('settings', cfg);
-  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species };
+  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species, daynight: cfg.daynight };
   broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
@@ -64,6 +64,7 @@ function initPayload() {
     cotd: catOfTheDay(),
     env: cfg.env,
     species: cfg.species,
+    daynight: cfg.daynight,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),
@@ -194,7 +195,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ...cfg, defaults: DEFAULTS });
     }
     const ev = p.match(/^\/api\/event\/([a-z]+)$/);
-    if (ev) { const args = {}; for (const k of ['x', 'z', 'n']) if (url.searchParams.has(k)) args[k] = +url.searchParams.get(k); return fireEvent(ev[1], 'admin', args) ? json(res, 200, { ok: true, event: ev[1] }) : json(res, 404, { ok: false, error: 'unknown event', events: EVENTS }); }
+    if (ev) { const args = {}; for (const k of ['x', 'z', 'n']) if (url.searchParams.has(k)) args[k] = +url.searchParams.get(k); if (url.searchParams.has('kind')) args.kind = String(url.searchParams.get('kind')).slice(0, 10); return fireEvent(ev[1], 'admin', args) ? json(res, 200, { ok: true, event: ev[1] }) : json(res, 404, { ok: false, error: 'unknown event', events: EVENTS }); }
     if (p === '/api/chat') {
       let user = url.searchParams.get('user'), msg = url.searchParams.get('msg');
       if (req.method === 'POST') { try { const b = JSON.parse(await readBody(req) || '{}'); user = b.user ?? user; msg = b.msg ?? msg; } catch { return json(res, 400, { ok: false, error: 'bad json' }); } }
