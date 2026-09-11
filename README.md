@@ -68,9 +68,12 @@ Simulate any of these without Twitch from the admin page, or `GET /api/test?kind
 
 Chat: `!level` shows loyalty level (grows with commands sent). Pets warm a pair up and tackles cool it down over time, on top of the secret base affinity — friendships are learned and remembered.
 
+- **Tug of war** (`tug` event): join, get split into red and blue on a yarn string, then spam `!pull`. 25 seconds or a big lead wins; the losers get yanked over.
 - **Catnip roulette** (`catniproulette`): one random cat gets it, everyone else watches.
 - **Box roulette** (`boxroulette`): five numbered boxes drop, chat types `!pick 3`, one box has the treat. Right guesses jump, wrong ones sulk.
 - **Holiday decor** (setting, or the streamer panel): 🎃 pumpkins with faces, or 🎄 a tree with presents whose ornaments fall off when a cat climbs it.
+
+Cats also react to plain chat, not only commands: "lol" gets giggles and rolls, "aww" gets hearts, a "hi" gets waves, "F" gets a solemn sit, "pog" gets jumps. How busy chat is sets the stage's energy: a lively chat means more zoomies, a dead one means more naps. Bowls auto-refill every N minutes (setting, default 30).
 
 Cats resume where they were: positions are saved every 20 seconds and restored on reload.
 

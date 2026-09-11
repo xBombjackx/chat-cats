@@ -21,8 +21,10 @@
       else if(m.type==='chat') handleChat(m.user, m.msg, m.key, m.away||0, m.lvl||0);
       else if(m.type==='event' && events[m.name]) events[m.name](m);
       else if(m.type==='twitch') handleTwitch(m);
+      else if(m.type==='vibe') vibe(m.kind);
+      else if(m.type==='energy') setEnergy(m.perMin);
       else if(m.type==='cooldown'){ const c=cats.get(m.key); if(c) c.say('⏳'); }
-      else if(m.type==='config'){ if(m.maxCats) MAX_CATS=m.maxCats; if(m.env&&!envLocked) setEnv(m.env); if(m.species) SPECIES_MODE=m.species; if(m.daynight!=null&&q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); } if(m.holiday!=null&&!q.get('holiday')) setHoliday(m.holiday); }
+      else if(m.type==='config'){ if(m.maxCats) MAX_CATS=m.maxCats; if(m.env&&!envLocked) setEnv(m.env); if(m.species) SPECIES_MODE=m.species; if(m.daynight!=null&&q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); } if(m.holiday!=null&&!q.get('holiday')) setHoliday(m.holiday); if(m.autoRefillMin!=null) AUTO_REFILL_MIN=+m.autoRefillMin; }
       else if(m.type==='watchers') watchers=m.n;
       else if(m.type==='poke') handlePoke(m.x,m.z);
     };

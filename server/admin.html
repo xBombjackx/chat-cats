@@ -28,6 +28,7 @@
       <label>cat cap <input type="number" id="s-maxCats" min="1" max="200" style="width:64px"></label>
       <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100" style="width:80px"></label>
       <label>respawn h <input type="number" id="s-respawnHours" min="0" step="1" style="width:64px"></label>
+      <label>auto refill min <input type="number" id="s-autoRefillMin" min="0" style="width:64px"></label>
       <label><input type="checkbox" id="s-predictions"> race predictions</label>
       <label><input type="checkbox" id="s-daynight"> day/night by the clock</label>
       <label>animals <select id="s-species"><option value="cat">cats</option><option value="dog">dogs</option><option value="raccoon">raccoons</option><option value="otter">otters</option><option value="mixed">mixed (each chatter picks)</option></select></label>
@@ -50,7 +51,7 @@
       <button class="ev" data-ev="nap">Nap time</button>
       <button class="ev" data-ev="race">Cat race</button>
       <button class="ev" data-ev="feeding">Feeding time</button><button class="ev" data-ev="treat">Treat</button><button class="ev" data-ev="boxes">Box drop</button>
-      <button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="confetti">Confetti</button><button class="ev" data-ev="birthday">🎂 Birthday girl</button><button class="ev" data-ev="weather">Weather</button><button class="ev" data-ev="beds">Musical beds</button><button class="ev" data-ev="rlgl">Red light green light</button><button class="ev" data-ev="photo">📸 Photo</button><button class="ev" data-ev="catniproulette">Catnip roulette</button><button class="ev" data-ev="boxroulette">Box roulette</button>
+      <button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="confetti">Confetti</button><button class="ev" data-ev="birthday">🎂 Birthday girl</button><button class="ev" data-ev="weather">Weather</button><button class="ev" data-ev="beds">Musical beds</button><button class="ev" data-ev="rlgl">Red light green light</button><button class="ev" data-ev="tug">Tug of war</button><button class="ev" data-ev="photo">📸 Photo</button><button class="ev" data-ev="catniproulette">Catnip roulette</button><button class="ev" data-ev="boxroulette">Box roulette</button>
     </div>
     <div class="row"><button data-ev="refill">Refill bowls</button><button data-ev="clearprops">Clear props</button><button id="clearcats">Clear all cats</button></div>
     <div class="hint">Props are placed by clicking the stage on the overlay page (press H there to show the UI).</div>
@@ -142,7 +143,7 @@
   // settings
   $('#playurl').textContent=location.origin+'/play';
   if(KEY) for(const c of document.querySelectorAll('.hint code')) if(c.textContent.includes('/api/')) c.textContent+=(c.textContent.includes('?')?'&':'?')+'key=…';
-  const SKEYS=['maxCats','cooldownMs','respawnHours'];
+  const SKEYS=['maxCats','cooldownMs','respawnHours','autoRefillMin'];
   const showSettings=s=>{ for(const k of SKEYS) $('#s-'+k).value=s[k]; $('#s-predictions').checked=!!s.predictions; $('#s-daynight').checked=!!s.daynight; $('#s-env').value=s.env||'none'; $('#s-species').value=s.species||'cat'; $('#s-holiday').value=s.holiday||'none'; };
   fetch('/api/settings').then(r=>r.json()).then(showSettings);
   $('#savesettings').onclick=async()=>{ const body={predictions:$('#s-predictions').checked?1:0, daynight:$('#s-daynight').checked?1:0, env:$('#s-env').value, species:$('#s-species').value, holiday:$('#s-holiday').value}; for(const k of SKEYS) body[k]=+$('#s-'+k).value; showSettings(await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json())); };

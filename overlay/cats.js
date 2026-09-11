@@ -371,7 +371,8 @@ class Cat {
       const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
         if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
     const rv=near(this,3,c=>isRival(this,c)); if(rv && Math.random()<0.5){ const dx=this.g.position.x-rv.g.position.x, dz=this.g.position.z-rv.g.position.z, d=Math.hypot(dx,dz)||1; this.say(pick(['hmph','…'])); this.walkTo(this.g.position.x+dx/d*4, this.g.position.z+dz/d*3); return; }   // not sitting next to *that* one
-    const pool=[['walk',0.45*T.walk*(1-0.5*NIGHT)],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',(0.08+0.1*NIGHT)*T.sleep],['sleep',(0.03+0.15*NIGHT)*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom]];
+    const lively=0.6+0.8*ENERGY;   // busy chat → more walking/zoomies, dead chat → more naps
+    const pool=[['walk',0.45*T.walk*(1-0.5*NIGHT)*lively],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',(0.08+0.1*NIGHT)*T.sleep],['sleep',(0.03+0.15*NIGHT+0.08*(1-ENERGY))*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom*lively]];
     let r=Math.random()*pool.reduce((a,[,w])=>a+w,0), act='walk'; for(const [a,w] of pool){ r-=w; if(r<=0){ act=a; break; } }
     switch(act){
       case 'walk': this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4)); break;
@@ -452,6 +453,7 @@ function handleChat(user, msg, key, away, lvl){
   else if(cmd==='sneak'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; note=sneak(cat, t&&t!==cat?t:null)?'sneaking':'nobody to sneak up on'; }
   else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
   else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else { nudgeRel(cat,o,-0.08); wrestle(cat,o,false); } }
+  else if(cmd==='pull'){ if(tug.on&&tug.side.has(key)){ tug.force[tug.side.get(key)]+=1; cat.play('tackle',0.4,true); note='pull!'; } else note='no tug of war on'; }
   else if(cmd==='pick'){ const n=+parts[0]; if(!roulette.on) note='no roulette running'; else if(!(n>=1&&n<=5)) note='pick 1-5'; else { roulette.picks[key]=n; cat.say('📦 '+n); note='picked '+n; } }
   else if(cmd==='level'){ cat.say(`level ${lvl||0} ${lvl>=10?'🌟':lvl>=5?'⭐':'✨'}`); note='level '+(lvl||0); }
   else if(cmd==='photo'){ note=takePhoto(user); }
@@ -512,6 +514,18 @@ addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.bod
 
 // ---------- streamer events ----------
 let laser=null, fishes=[], busy=false, vac=null, treats=[]; const weather={kind:null,t0:0}, roulette={on:false,picks:{},boxes:[]};
+let ENERGY=0.5, AUTO_REFILL_MIN=30, lastRefill=performance.now();   // ENERGY 0 (dead chat) … 1 (busy) from messages per minute
+function setEnergy(perMin){ ENERGY=clamp(perMin/25,0,1); }
+// cats react to what chat says, not just commands
+function vibe(kind){ const list=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.anim&&c.state!=='sleep'); if(!list.length) return; const some=list.sort(()=>Math.random()-0.5).slice(0,1+Math.floor(list.length/3));
+  let i=0; for(const c of some) setTimeout(()=>{ if(c.dead) return;
+    if(kind==='lol'){ c.say(pick(['😹','lol','hehe','😆'])); if(Math.random()<0.5) c.play('roll',1.2); }
+    else if(kind==='aww'){ c.say(pick(['💕','🥹',':3','prrr'])); c.look={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+3}; }
+    else if(kind==='hi'){ c.facing=-Math.PI/2; c.wave(); c.say(pick(['hi!','o/','hello','👋'])); }
+    else if(kind==='f'){ c.giveUp(); c.facing=-Math.PI/2; c.setState('sit'); c.timer=4; c.say('F'); }
+    else if(kind==='hype'){ c.jump(); c.say(pick(['🎉','POG','LETS GO','!!'])); }
+    else if(kind==='bye'){ c.facing=-Math.PI/2; c.wave(); c.say(pick(['bye!','gn 💤','o/'])); }
+  }, i++*220); }
 function refuge(c){ let best=null, bd=40; for(const p of props){ if(!(p.h>0||p.type==='box')||p.users>=(p.cap||1)) continue; const d=Math.hypot(p.x-c.g.position.x,p.z-c.g.position.z); if(d<bd){ bd=d; best=p; } } return best; }
 function removeProp(p){ for(const c of cats.values()){ if(c.onProp===p) c.dismountNow(); if(c.prop===p) c.releaseProp(); } scene.remove(p.mesh); props=props.filter(x=>x!==p); }
 const events = {
@@ -569,6 +583,7 @@ const events = {
       toast(`box roulette: ${winners.length} right, ${losers.length} wrong`);
       setTimeout(()=>{ for(const p of roulette.boxes){ p.label?.remove(); if(props.includes(p)) removeProp(p); } roulette.boxes=[]; roulette.on=false; }, 7000); }, 15000); },
   holiday(m){ setHoliday(m?.kind||(holidayKind==='none'?'halloween':holidayKind==='halloween'?'xmas':'none')); },
+  tug(){ game.open('🪢 TUG OF WAR — !join, then spam !pull', 15, tugOfWar); },
   beds(){ game.open('🛏️ MUSICAL BEDS', 15, musicalBeds); },
   rlgl(){ game.open('🚦 RED LIGHT GREEN LIGHT', 15, redLightGreenLight); },
   photo(){ takePhoto('streamer'); },
@@ -831,11 +846,11 @@ if(q.get('env')){ envLocked=true; setEnv(q.get('env')); }
 if(q.get('holiday')) setHoliday(q.get('holiday'));
 document.querySelectorAll('[data-holiday]').forEach(b=>b.onclick=()=>{ setHoliday(b.dataset.holiday); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({holiday:b.dataset.holiday})}).catch(()=>{}); });
 // full settings on the overlay panel (needs the server; the demo just applies the cat cap locally)
-(function(){ const F=['maxCats','cooldownMs','respawnHours'], key=q.get('key')||''; const el=id=>document.getElementById(id);
+(function(){ const F=['maxCats','cooldownMs','respawnHours','autoRefillMin'], key=q.get('key')||''; const el=id=>document.getElementById(id);
   const show=s=>{ for(const k of F) el('s-'+k).value=s[k]; el('s-predictions').checked=!!s.predictions; el('s-daynight').checked=!!s.daynight; el('s-note').textContent='saved on the server'; };
   fetch('/api/settings',{headers:{'x-key':key}}).then(r=>r.ok?r.json():Promise.reject()).then(show).catch(()=>{ el('s-note').textContent='no server here — only the cat cap applies, locally'; });
   el('savesettings').onclick=async()=>{ const body={predictions:el('s-predictions').checked?1:0, daynight:el('s-daynight').checked?1:0}; for(const k of F) body[k]=+el('s-'+k).value;
-    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay();
+    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay(); AUTO_REFILL_MIN=body.autoRefillMin;
     try{ const r=await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':key},body:JSON.stringify(body)}); if(r.ok){ show(await r.json()); toast('settings saved'); } else throw 0; }catch{ el('s-note').textContent='applied locally (no server)'; } }; })();
 document.querySelectorAll('[data-species]').forEach(b=>b.onclick=()=>{ SPECIES_MODE=b.dataset.species; toast('animals: '+b.dataset.species); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({species:b.dataset.species})}).catch(()=>{}); });
 document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
@@ -886,6 +901,7 @@ function applyInit(m){
   if(!envLocked && m.env) setEnv(m.env);
   if(m.species) SPECIES_MODE=m.species;
   if(m.holiday!=null && !q.get('holiday')) setHoliday(m.holiday);
+  if(m.autoRefillMin!=null) AUTO_REFILL_MIN=+m.autoRefillMin;
   if(m.daynight!=null && q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); }
   if(m.rels) for(const [k,v] of Object.entries(m.rels)) REL[k]=v;
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }
@@ -921,11 +937,12 @@ const director={ timers:[], on:false,
         const cmd=pick(['!meow','!meow','!jump','!zoomies','!lick','!roll','!stretch','!pounce','!hiss','!sleep','!loaf','!wave','!shake','!stalk','!sneak','!spin', other&&other!==who?'!pet @'+other:'!meow', other&&other!==who?'!tackle @'+other:'!jump', other&&other!==who?'!follow @'+other:'!zoomies']);
         handleChat(who, cmd); }
       this.timers.push(setTimeout(chat, rnd(2500,7000))); };
-    const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti','birthday','beds','rlgl','weather','catniproulette','boxroulette']);
+    const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti','birthday','beds','rlgl','weather','catniproulette','boxroulette','tug']);
       if(name==='race'){ events.race({joinSecs:8}); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!join'); },2000)); }
+      else if(name==='tug'){ events.tug(); this.timers.push(setTimeout(()=>{ const ps=[...cats.values()].sort(()=>Math.random()-0.5).slice(0,6); for(const c of ps) handleChat(c.name,'!join'); const pulls=setInterval(()=>{ if(!tug.on){ clearInterval(pulls); return; } const c=pick(ps); if(c&&!c.dead) handleChat(c.name,'!pull'); },400); this.timers.push(pulls); },2000)); }
       else if(name==='boxroulette'){ events.boxroulette(); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!pick '+(1+Math.floor(Math.random()*5))); },3000)); }
       else events[name]();
-      this.timers.push(setTimeout(ev, ['race','beds','rlgl','birthday'].includes(name)?70000:name==='boxroulette'?30000:rnd(25000,45000))); };
+      this.timers.push(setTimeout(ev, ['race','beds','rlgl','birthday','tug'].includes(name)?70000:name==='boxroulette'?30000:rnd(25000,45000))); };
     chat(); this.timers.push(setTimeout(ev, 12000));
     if(cats.size<6) demoSpawn(6-cats.size);
     this.timers.push(setInterval(()=>{ if(cats.size<7&&Math.random()<0.5) demoSpawn(1); },45000)); },
@@ -977,6 +994,19 @@ const game={ name:null, phase:'idle', players:[], onStart:null,
   end(){ this.phase='idle'; this.name=null; for(const p of [...props]) if(p.type==='catbed') removeProp(p); banner(''); } };
 
 // musical beds: n players, n-1 beds. Music → wander; stop → rush; the one left standing is out. Last one wins.
+// tug of war: two teams on a yarn string; every !pull from a team member yanks it; 25 s or a big enough lead wins
+const tug={on:false, side:new Map(), force:{red:0,blue:0}, rope:null, offset:0};
+function tugOfWar(players){ tug.on=true; tug.side=new Map(); tug.force={red:0,blue:0}; tug.offset=0; const cz=(ZMIN+ZMAX)/2;
+  const rope=tug.rope=new THREE.Group(); box(rope,9,0.12,0.12,0xe0563b,0,0.35,0); box(rope,0.4,0.4,0.4,0xffd23f,0,0.35,0); rope.position.set(0,0,cz); scene.add(rope);
+  players.forEach((c,i)=>{ const side=i%2?'blue':'red'; tug.side.set(c.key,side); c.giveUp(); c.noCollide=true; c.tugSide=side; const k=Math.floor(i/2); c.walkTo(side==='red'?-5-k*1.3:5+k*1.3, cz+(k%2?0.9:-0.9), 4); c.onArrive=()=>{ c.facing=side==='red'?0:Math.PI; c.timer=99; }; c.say(side==='red'?'🔴':'🔵'); });
+  banner('🪢 RED vs BLUE — !pull',3000);
+  const t0=performance.now(); const tick=setInterval(()=>{ if(game.phase!=='running'){ clearInterval(tick); return; }
+    const d=tug.force.red-tug.force.blue; tug.offset=clamp(d*0.35,-4.5,4.5); rope.position.x=tug.offset;
+    for(const c of players){ if(c.dead) continue; const side=c.tugSide; const homeX=side==='red'?-5:5; c.g.position.x=clamp(homeX+tug.offset+(side==='red'?-1:1)*Math.floor([...tug.side.keys()].filter(k=>tug.side.get(k)===side).indexOf(c.key)/1)*1.3, -XMAX, XMAX); c.facing=side==='red'?0:Math.PI; c.body.rotation.z=(side==='red'?-1:1)*0.25*Math.min(1,Math.abs(d)/6); }
+    banner(`🪢 🔴 ${tug.force.red}  ${tug.offset<-0.5?'◀':tug.offset>0.5?'▶':'•'}  ${tug.force.blue} 🔵`,0);
+    if(Math.abs(tug.offset)>=4.5 || performance.now()-t0>25000){ clearInterval(tick); const win=d===0?null:d>0?'red':'blue'; banner(win?`🪢 ${win==='red'?'🔴 RED':'🔵 BLUE'} WINS!`:'🪢 draw!',5000);
+      for(const c of players){ if(c.dead) continue; c.body.rotation.z=0; c.noCollide=false; if(win&&c.tugSide!==win){ c.play('knocked',0.8); c.say(pick(['oof','😾','aw'])); } else if(win){ c.jump(); c.say(pick(['🎉','YES','💪'])); stat(c,'wins'); } }
+      setTimeout(()=>{ scene.remove(rope); tug.rope=null; tug.on=false; game.end(); },3000); } }, 250); }
 function musicalBeds(players){ let alive=players.filter(c=>!c.dead); const cx=0, cz=(ZMIN+ZMAX)/2;
   const round=()=>{ alive=alive.filter(c=>!c.dead); if(alive.length<=1){ const w=alive[0]; if(w){ banner('🛏️ '+w.name+' wins!',5000); w.jump(); w.say('🏆'); stat(w,'wins'); } game.end(); return; }
     for(const p of [...props]) if(p.type==='catbed') removeProp(p); const n=alive.length-1;
@@ -1085,6 +1115,7 @@ function frame(now){
       else for(const c of cats.values()) if(!c.dead&&!c.onProp&&!c.anim&&Math.hypot(c.g.position.x-tr.position.x,c.g.position.z-tr.position.z)<1.1){ eatTreat(c,tr); break; } } }   // walked right over one
   treats=treats.filter(tr=>!tr.userData.gone);  if(weather.kind && Math.random()<(weather.kind==='rain'?0.9:0.5)){ const rain=weather.kind==='rain'; const f=box(scene,rain?0.05:0.18,rain?0.5:0.18,rain?0.05:0.05,rain?0x8fc7ff:0xffffff,rnd(-XMAX-3,XMAX+3),10+rnd(0,3),rnd(ZMIN-3,ZMAX+3)); f.userData.vy=rain?-14:-1.2; f.userData.conf=true; f.userData.rain=rain; fishes.push(f); }
   for(const p of props) if(p.label){ const v=new THREE.Vector3(p.x,1.6,p.z).project(camera); p.label.style.left=(v.x+1)/2*innerWidth+'px'; p.label.style.top=(1-v.y)/2*innerHeight+'px'; }
+  if(!PLAY && AUTO_REFILL_MIN>0 && now-lastRefill>AUTO_REFILL_MIN*60000){ lastRefill=now; if(props.some(p=>p.amount!=null&&p.amount<3)){ refill(); toast('auto refill'); } }
   for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
   renderer.render(scene,camera);
   if(photoWanted){ photoWanted=false; try{ const data=renderer.domElement.toDataURL('image/jpeg',0.82); net.send({type:'photo', data, by:photoBy}); toast('📸 sent'); }catch(e){ toast('photo failed: '+e.message); } }

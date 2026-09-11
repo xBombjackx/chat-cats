@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'beds', 'rlgl', 'photo', 'catniproulette', 'boxroulette', 'holiday', 'refill', 'clearprops', 'clearcats'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'beds', 'rlgl', 'photo', 'catniproulette', 'boxroulette', 'holiday', 'tug', 'refill', 'clearprops', 'clearcats'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -27,7 +27,7 @@ let oauthState = null;
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
 const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
 // settings: .env gives defaults, /admin can change them live (stored in sqlite)
-const DEFAULTS = { predictions: +env('PREDICTIONS', 1), daynight: +env('DAYNIGHT', 0), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
+const DEFAULTS = { predictions: +env('PREDICTIONS', 1), autoRefillMin: +env('AUTO_REFILL_MIN', 30), daynight: +env('DAYNIGHT', 0), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
 cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
@@ -41,7 +41,7 @@ function setSettings(patch) {
   if (SPECIES_MODES.includes(patch.species)) cfg.species = patch.species;
   if (HOLIDAYS.includes(patch.holiday)) cfg.holiday = patch.holiday;
   db.set('settings', cfg);
-  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species, daynight: cfg.daynight, holiday: cfg.holiday };
+  const config = { type: 'config', maxCats: cfg.maxCats, autoRefillMin: cfg.autoRefillMin, env: cfg.env, species: cfg.species, daynight: cfg.daynight, holiday: cfg.holiday };
   broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
@@ -69,6 +69,7 @@ function initPayload() {
     env: cfg.env,
     species: cfg.species,
     daynight: cfg.daynight,
+    autoRefillMin: cfg.autoRefillMin,
     holiday: cfg.holiday,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
@@ -82,9 +83,19 @@ function initPayload() {
 const lastCmd = new Map();   // key -> ms
 const today = () => new Date().toISOString().slice(0, 10);
 const catKey = (platform, user, id) => `${platform}:${String(id || user || 'anon').toLowerCase()}`;
+// plain chat (not commands) still matters: a rough mood signal the cats react to, and how busy chat is
+const VIBES = [[/\b(lol|lmao|haha|kekw|omegalul|😂|🤣)\b/i, 'lol'], [/\b(aw+|cute|adorable|precious|🥹|😭)\b/i, 'aww'], [/^(hi|hello|hey|yo|hii+|heyo)\b/i, 'hi'], [/^f$/i, 'f'], [/\b(gg|pog+|poggers|lets go+|hype)\b/i, 'hype'], [/\b(bye|gn|goodnight|night|cya)\b/i, 'bye']];
+const chatWindow = [];   // timestamps of recent messages → energy
+let lastVibe = 0;
+function onPlain(msg) {
+  const now = Date.now(); chatWindow.push(now); while (chatWindow.length && chatWindow[0] < now - 60000) chatWindow.shift();
+  if (now - lastVibe < 4000) return;
+  for (const [re, kind] of VIBES) if (re.test(msg)) { lastVibe = now; broadcast({ type: 'vibe', kind }, 'overlay'); break; }
+}
+setInterval(() => { const now = Date.now(); while (chatWindow.length && chatWindow[0] < now - 60000) chatWindow.shift(); broadcast({ type: 'energy', perMin: chatWindow.length }, 'overlay'); }, 15000);
 function onChat({ platform, user, id, msg, free }) {   // free = skip and don't consume the cooldown (paid redeems)
   msg = String(msg ?? '').trim(); user = String(user ?? 'anon').slice(0, 40) || 'anon';
-  if (!msg.startsWith('!')) return;
+  if (!msg.startsWith('!')) { if (platform !== 'admin') onPlain(msg); return; }
   const key = catKey(platform, user, id);
   const now = Date.now();
   if (!free && platform !== 'admin') {

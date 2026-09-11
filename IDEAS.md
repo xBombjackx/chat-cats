@@ -26,7 +26,7 @@ Not commitments. Cross things off or reorder freely.
 - Obstacle course variant (boxes to jump, tunnel, a box some cats refuse to leave)
 - ~~Red light / green light~~ — *done*
 - ~~Box roulette~~ — *done*
-- Tug of war: two teams pull a yarn string, wins by message count
+- ~~Tug of war~~ — *done (`!pull`)*
 - Cat stacking, chat votes when it falls — *no physics; fakeable with elevation, will look flimsy*
 - Hide and seek: chat guesses where a named cat is — *low visual payoff, cats can only hide in boxes*
 - Bingo: cat behaviours as squares
