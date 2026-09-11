@@ -68,6 +68,12 @@ Simulate any of these without Twitch from the admin page, or `GET /api/test?kind
 
 Chat: `!level` shows loyalty level (grows with commands sent). Pets warm a pair up and tackles cool it down over time, on top of the secret base affinity — friendships are learned and remembered.
 
+- **Catnip roulette** (`catniproulette`): one random cat gets it, everyone else watches.
+- **Box roulette** (`boxroulette`): five numbered boxes drop, chat types `!pick 3`, one box has the treat. Right guesses jump, wrong ones sulk.
+- **Holiday decor** (setting, or the streamer panel): 🎃 pumpkins with faces, or 🎄 a tree with presents whose ornaments fall off when a cat climbs it.
+
+Cats resume where they were: positions are saved every 20 seconds and restored on reload.
+
 ## Cat race
 
 Fire the `race` event (streamer panel, admin page, Stream Deck `/api/event/race`, or a channel point reward mapped to `race`). Chat types `!join` for 20 seconds; if fewer than two join, random cats fill the field. Cats line up on the left, 3-2-1, then run right with speed bursts, grooming stops and a butterfly to chase. First across wins and wears a crown until the next race.

@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'beds', 'rlgl', 'photo', 'refill', 'clearprops', 'clearcats'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'beds', 'rlgl', 'photo', 'catniproulette', 'boxroulette', 'holiday', 'refill', 'clearprops', 'clearcats'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -32,13 +32,16 @@ const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
 cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
 const SPECIES_MODES = ['cat', 'dog', 'raccoon', 'otter', 'mixed'];
+const HOLIDAYS = ['none', 'halloween', 'xmas'];
+cfg.holiday = HOLIDAYS.includes(cfg.holiday) ? cfg.holiday : 'none';
 cfg.species = SPECIES_MODES.includes(cfg.species) ? cfg.species : env('SPECIES', 'cat');
 function setSettings(patch) {
   for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
   if (ENVS.includes(patch.env)) cfg.env = patch.env;
   if (SPECIES_MODES.includes(patch.species)) cfg.species = patch.species;
+  if (HOLIDAYS.includes(patch.holiday)) cfg.holiday = patch.holiday;
   db.set('settings', cfg);
-  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species, daynight: cfg.daynight };
+  const config = { type: 'config', maxCats: cfg.maxCats, env: cfg.env, species: cfg.species, daynight: cfg.daynight, holiday: cfg.holiday };
   broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
@@ -66,6 +69,7 @@ function initPayload() {
     env: cfg.env,
     species: cfg.species,
     daynight: cfg.daynight,
+    holiday: cfg.holiday,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),
@@ -260,7 +264,7 @@ const wss = new WebSocketServer({ server });
 let primary = null;   // the overlay whose cat positions get mirrored to the companion page
 function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
 // what each role may send; nothing before a successful hello
-const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race', 'stat', 'rel', 'photo'], admin: ['chat', 'event'], play: ['poke'] };
+const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race', 'stat', 'rel', 'photo', 'pos'], admin: ['chat', 'event'], play: ['poke'] };
 const isStr = v => typeof v === 'string' && v.length > 0 && v.length < 200;
 wss.on('connection', ws => {
   const c = { ws, role: null };   // role is set only once hello is accepted
@@ -295,6 +299,7 @@ wss.on('connection', ws => {
         case 'event': if (isStr(m.name)) fireEvent(m.name); break;
         case 'banner': if (c === primary) broadcast({ type: 'banner', text: String(m.text ?? '').slice(0, 80), ms: +m.ms || 0 }, 'play'); break;
         case 'race': if (c === primary) onRace(m); break;
+        case 'pos': if (c === primary && Array.isArray(m.cats)) for (const [k, x, z] of m.cats.slice(0, 200)) if (isStr(k) && Number.isFinite(+x) && Number.isFinite(+z)) db.setPos(k, +x, +z); break;
         case 'rel': if (c === primary && isStr(m.a) && isStr(m.b) && Number.isFinite(+m.d)) db.setRel([m.a, m.b].sort().join('|'), Math.max(-0.9, Math.min(0.9, +m.d))); break;
         case 'photo': if (c === primary && typeof m.data === 'string' && m.data.startsWith('data:image/jpeg;base64,') && m.data.length < 3e6) savePhoto(m.data, String(m.by || 'streamer').slice(0, 30)); break;
         case 'stat': if (c === primary && isStr(m.key) && STATS.includes(m.name)) db.bump(m.key, m.name); break;

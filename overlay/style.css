@@ -67,3 +67,4 @@
   body.night.env{background:#0b0a14}
   .panel label{font-size:12px}
   #census{position:fixed;right:14px;top:14px;background:rgba(19,17,28,.75);color:#f3ecdf;border-radius:12px;padding:8px 12px;font-size:13px;line-height:1.5;max-height:60vh;overflow:auto;pointer-events:none}
+  .tag.boxnum{font-size:22px;color:#ffe08a;text-shadow:0 2px 0 rgba(0,0,0,.6),0 0 8px rgba(0,0,0,.6)}

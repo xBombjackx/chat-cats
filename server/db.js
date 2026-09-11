@@ -17,12 +17,14 @@ export function openDb(path) {
     CREATE TABLE IF NOT EXISTS chatters (day TEXT NOT NULL, key TEXT NOT NULL, PRIMARY KEY(day, key));
     CREATE TABLE IF NOT EXISTS rels (pair TEXT PRIMARY KEY, d REAL NOT NULL);
   `);
+  try { db.exec('ALTER TABLE cats ADD COLUMN x REAL'); db.exec('ALTER TABLE cats ADD COLUMN z REAL'); } catch { /* already there */ }
   const upsertCat = db.prepare(`INSERT INTO cats(key,name,look,last) VALUES(?,?,?,?)
     ON CONFLICT(key) DO UPDATE SET name=excluded.name, look=excluded.look, last=excluded.last`);
   const touchCat = db.prepare(`UPDATE cats SET last=? WHERE key=?`);
   const delCat = db.prepare(`DELETE FROM cats WHERE key=?`);
   const getCat = db.prepare(`SELECT key,name,look,last FROM cats WHERE key=?`);
-  const recentCats = db.prepare(`SELECT key,name,look,last FROM cats WHERE last>? ORDER BY last DESC LIMIT ?`);
+  const recentCats = db.prepare(`SELECT key,name,look,last,x,z FROM cats WHERE last>? ORDER BY last DESC LIMIT ?`);
+  const setPos = db.prepare(`UPDATE cats SET x=?, z=? WHERE key=?`);
   const getKv = db.prepare(`SELECT v FROM kv WHERE k=?`);
   const bump = db.prepare(`INSERT INTO stats(key,stat,n) VALUES(?,?,1) ON CONFLICT(key,stat) DO UPDATE SET n=n+1`);
   const top = db.prepare(`SELECT s.key, c.name, s.n FROM stats s LEFT JOIN cats c ON c.key=s.key WHERE s.stat=? ORDER BY s.n DESC LIMIT ?`);
@@ -43,6 +45,7 @@ export function openDb(path) {
     bump(key, stat) { bump.run(key, stat); },
     top(stat, limit = 5) { return top.all(stat, limit).map(r => ({ key: r.key, name: r.name || r.key.split(':')[1], n: r.n })); },
     randomCat(maxAgeMs) { return anyCats.get(Date.now() - maxAgeMs) || null; },
+    setPos(key, x, z) { setPos.run(x, z, key); },
     setRel(pair, dv) { db.prepare('INSERT INTO rels(pair,d) VALUES(?,?) ON CONFLICT(pair) DO UPDATE SET d=excluded.d').run(pair, dv); },
     rels() { return Object.fromEntries(db.prepare('SELECT pair,d FROM rels').all().map(r => [r.pair, r.d])); },
     statOf(key, stat) { const r = db.prepare('SELECT n FROM stats WHERE key=? AND stat=?').get(key, stat); return r ? r.n : 0; },
