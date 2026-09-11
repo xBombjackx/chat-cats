@@ -60,6 +60,14 @@ Simulate any of these without Twitch from the admin page, or `GET /api/test?kind
 
 `/play` is only useful if viewers can reach the server: run a tunnel (`cloudflared tunnel --url http://localhost:8080`, ngrok, …) and hand out `https://<tunnel>/play`. Before you do, set `ADMIN_KEY` in `.env`. With it set, `/admin`, `/api/*`, `/auth` and the overlay's socket need `?key=<ADMIN_KEY>` (the OBS browser source URL too, and Stream Deck URLs); the companion page stays public. Overlay files themselves are always public — they contain nothing secret.
 
+## More minigames
+
+- **Musical beds** (`beds` event): join window, then beds appear one fewer than the players. Music plays, they wander; STOP, they rush; whoever is left standing is out. Last one wins.
+- **Red light / green light** (`rlgl` event): players line up, the laser sits at the finish. Green: run. Red: freeze — each cat has its own reaction time, and anyone still moving gets caught. First to the line wins.
+- **Photo** (`!photo`, Photo button, `/api/event/photo`): everyone sits, faces the camera and poses; one frame is saved under `photos/` and posted to Discord if `DISCORD_WEBHOOK` is set in `.env`.
+
+Chat: `!level` shows loyalty level (grows with commands sent). Pets warm a pair up and tackles cool it down over time, on top of the secret base affinity — friendships are learned and remembered.
+
 ## Cat race
 
 Fire the `race` event (streamer panel, admin page, Stream Deck `/api/event/race`, or a channel point reward mapped to `race`). Chat types `!join` for 20 seconds; if fewer than two join, random cats fill the field. Cats line up on the left, 3-2-1, then run right with speed bursts, grooming stops and a butterfly to chase. First across wins and wears a crown until the next race.

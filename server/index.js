@@ -19,7 +19,7 @@ try { process.loadEnvFile(path.join(ROOT, '.env')); } catch { /* no .env yet, fi
 const env = (k, d) => process.env[k] ?? d;
 
 const PORT = +env('PORT', 8080);
-const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'refill', 'clearprops', 'clearcats'];
+const EVENTS = ['wrestlemania', 'catnip', 'fish', 'laser', 'nap', 'race', 'feeding', 'treat', 'boxes', 'vacuum', 'doorbell', 'cucumber', 'confetti', 'birthday', 'weather', 'beds', 'rlgl', 'photo', 'refill', 'clearprops', 'clearcats'];
 const MAX_PLAYERS = +env('MAX_PLAYERS', 50);   // companion page viewers
 const KEY = env('ADMIN_KEY', '');   // set this if the server is reachable from the internet (companion page via a tunnel): gates /admin, /api, /auth and the overlay socket
 let oauthState = null;
@@ -51,7 +51,8 @@ function broadcast(obj, role) {
 }
 function sendStatus() { broadcast({ type: 'status', ...status }, 'admin'); }
 
-const STATS = ['naps', 'pets', 'zoomies', 'wins', 'boops'];
+const STATS = ['naps', 'pets', 'zoomies', 'wins', 'boops', 'cmds'];
+const levelOf = key => Math.floor(Math.sqrt(db.statOf(key, 'cmds') / 8));   // loyalty: 8 commands → lvl 1, 200 → lvl 5, 800 → lvl 10
 function catOfTheDay() {   // one random cat seen in the last week, fixed for the calendar day
   const today = new Date().toISOString().slice(0, 10);
   let c = db.get('cotd', null);
@@ -68,6 +69,7 @@ function initPayload() {
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),
     zones: db.get('zones', []),
+    rels: db.rels(),
     maxCats: cfg.maxCats,
   };
 }
@@ -93,7 +95,8 @@ function onChat({ platform, user, id, msg, free }) {   // free = skip and don't 
   const prev = db.getCat(key), away = prev ? now - prev.last : 0;   // so the overlay can welcome regulars back
   db.touchCat(key);
   if (platform !== 'admin') { db.usage(today(), 'commands'); db.chatter(today(), key); }   // pilot metrics: is chat actually using it?
-  broadcast({ type: 'chat', platform, user, key, msg, away }, 'overlay');
+  if (platform !== 'admin') db.bump(key, 'cmds');
+  broadcast({ type: 'chat', platform, user, key, msg, away, lvl: levelOf(key) }, 'overlay');
   broadcast({ type: 'log', platform, user, msg }, 'admin');
 }
 function fireEvent(name, by = 'admin', args = {}) {
@@ -103,6 +106,18 @@ function fireEvent(name, by = 'admin', args = {}) {
   broadcast({ type: 'event', name, ...args, ...(name === 'race' ? { predictions: canPredict() } : {}) }, 'overlay');
   broadcast({ type: 'log', platform: 'event', user: by, msg: name }, 'admin');
   return true;
+}
+// ---------- photos: saved to photos/, posted to Discord if DISCORD_WEBHOOK is set ----------
+async function savePhoto(dataUrl, by) {
+  const buf = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
+  const dir = path.join(ROOT, 'photos'); fs.mkdirSync(dir, { recursive: true });
+  const name = `${new Date().toISOString().replace(/[:.]/g, '-')}.jpg`; fs.writeFileSync(path.join(dir, name), buf);
+  broadcast({ type: 'log', platform: 'photo', user: by, msg: `saved photos/${name}` }, 'admin');
+  const hook = env('DISCORD_WEBHOOK'); if (!hook) return;
+  try {
+    const form = new FormData(); form.append('payload_json', JSON.stringify({ content: `📸 ${by} took a photo` })); form.append('files[0]', new Blob([buf], { type: 'image/jpeg' }), name);
+    const r = await fetch(hook, { method: 'POST', body: form }); if (!r.ok) console.error('[photo] discord', r.status);
+  } catch (e) { console.error('[photo] discord failed:', e.message); }
 }
 // ---------- twitch predictions (cat race) ----------
 const canPredict = () => !!(twitch?.connected && cfg.predictions && (twitch.info?.scopes || []).includes('channel:manage:predictions'));
@@ -245,7 +260,7 @@ const wss = new WebSocketServer({ server });
 let primary = null;   // the overlay whose cat positions get mirrored to the companion page
 function sendWatchers() { broadcast({ type: 'watchers', n: status.players }, 'overlay'); }
 // what each role may send; nothing before a successful hello
-const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race', 'stat'], admin: ['chat', 'event'], play: ['poke'] };
+const ALLOWED = { overlay: ['state', 'cat', 'catgone', 'props', 'zones', 'banner', 'race', 'stat', 'rel', 'photo'], admin: ['chat', 'event'], play: ['poke'] };
 const isStr = v => typeof v === 'string' && v.length > 0 && v.length < 200;
 wss.on('connection', ws => {
   const c = { ws, role: null };   // role is set only once hello is accepted
@@ -280,6 +295,8 @@ wss.on('connection', ws => {
         case 'event': if (isStr(m.name)) fireEvent(m.name); break;
         case 'banner': if (c === primary) broadcast({ type: 'banner', text: String(m.text ?? '').slice(0, 80), ms: +m.ms || 0 }, 'play'); break;
         case 'race': if (c === primary) onRace(m); break;
+        case 'rel': if (c === primary && isStr(m.a) && isStr(m.b) && Number.isFinite(+m.d)) db.setRel([m.a, m.b].sort().join('|'), Math.max(-0.9, Math.min(0.9, +m.d))); break;
+        case 'photo': if (c === primary && typeof m.data === 'string' && m.data.startsWith('data:image/jpeg;base64,') && m.data.length < 3e6) savePhoto(m.data, String(m.by || 'streamer').slice(0, 30)); break;
         case 'stat': if (c === primary && isStr(m.key) && STATS.includes(m.name)) db.bump(m.key, m.name); break;
       }
     } catch (e) { console.error('[ws]', c.role, m.type, e.message); }

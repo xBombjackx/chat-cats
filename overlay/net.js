@@ -18,7 +18,7 @@
         else if(m.type==='config'){ if(m.env&&!envLocked) setEnv(m.env); }
         else if(m.type==='full'){ const h=document.getElementById('playhint'); if(h) h.textContent='room is full, try again later'; }
       }
-      else if(m.type==='chat') handleChat(m.user, m.msg, m.key, m.away||0);
+      else if(m.type==='chat') handleChat(m.user, m.msg, m.key, m.away||0, m.lvl||0);
       else if(m.type==='event' && events[m.name]) events[m.name](m);
       else if(m.type==='twitch') handleTwitch(m);
       else if(m.type==='cooldown'){ const c=cats.get(m.key); if(c) c.say('⏳'); }

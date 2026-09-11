@@ -66,3 +66,4 @@
   body.night.demo-bg{background:radial-gradient(1200px 600px at 50% 110%,#2b2540 0%,#151226 60%,#0b0a14 100%)}
   body.night.env{background:#0b0a14}
   .panel label{font-size:12px}
+  #census{position:fixed;right:14px;top:14px;background:rgba(19,17,28,.75);color:#f3ecdf;border-radius:12px;padding:8px 12px;font-size:13px;line-height:1.5;max-height:60vh;overflow:auto;pointer-events:none}

@@ -410,7 +410,7 @@ function spawnCat(key, name, look, quiet){
   const cat=new Cat(key, name, look); cats.set(key,cat); if(!quiet) cat.say('hi!'); return cat;
 }
 
-function handleChat(user, msg, key, away){
+function handleChat(user, msg, key, away, lvl){
   key = key || 'sim:'+user.toLowerCase();
   msg = msg.trim(); if(!msg.startsWith('!')) return;
   const raw = msg.slice(1).split(/\s+/); raw.shift();
@@ -432,7 +432,7 @@ function handleChat(user, msg, key, away){
     else { cat.look=look; cat.build(); cat.jump(); note='updated'; }
     net.send({type:'cat', key, name:user, look:cat.look});
   } else if(!cat){ note='no cat yet — use !'+(SPECIES_MODE==='mixed'?'cat / !dog / !raccoon / !otter':(SPECIES[SPECIES_MODE]?SPECIES_MODE:'cat')); }
-  else if(cmd==='join') note=race.join(cat);
+  else if(cmd==='join') note=race.phase==='join'?race.join(cat):game.join(cat);
   else if(cmd==='name'){ const n=raw.join(' ').replace(/[<>]/g,'').trim().slice(0,20); cat.setName(n||user); net.send({type:'cat', key, name:cat.name, look:cat.look}); note='named '+cat.name; }
   else if(cmd==='afk'){ cat.setAfk(true); note='afk'; }
   else if(cmd==='follow'){ const who=(parts[0]||'').replace(/^@/,''); const other=who?findCat(who):null; if(!who){ cat.following=null; note='stopped following'; } else if(!other||other===cat) note='who? try !follow @name'; else { cat.following={cat:other, until:performance.now()+60000}; cat.say(pick(['👀','coming!','wait up'])); cat.giveUp(); cat.timer=0.2; note='following '+other.name; } }
@@ -450,7 +450,9 @@ function handleChat(user, msg, key, away){
   else if(cmd==='pounce') cat.play('pounce',1.0);
   else if(cmd==='sneak'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; note=sneak(cat, t&&t!==cat?t:null)?'sneaking':'nobody to sneak up on'; }
   else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
-  else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else wrestle(cat,o,false); }
+  else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else { nudgeRel(cat,o,-0.08); wrestle(cat,o,false); } }
+  else if(cmd==='level'){ cat.say(`level ${lvl||0} ${lvl>=10?'🌟':lvl>=5?'⭐':'✨'}`); note='level '+(lvl||0); }
+  else if(cmd==='photo'){ note=takePhoto(user); }
   else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(voice(cat,'hiss')); }
   else if(cmd==='shake') cat.play('shake',0.7);
   else if(cmd==='pet'||cmd==='boop'||cmd==='hug'){
@@ -458,6 +460,7 @@ function handleChat(user, msg, key, away){
     if(!other||other===cat) note='who? try !pet @name';
     else { stat(cat,'pets'); cat.noCollide=other.noCollide=true; cat.pal=other; const side=cat.g.position.x<other.g.position.x?-1:1;
       cat.walkTo(other.g.position.x+side*1.15, other.g.position.z, 3.2);
+      nudgeRel(cat,other,0.12);
       cat.onArrive=()=>{ cat.facing=side<0?0:Math.PI; other.facing=side<0?Math.PI:0; cat.play('nuzzle',1.4); other.play('nuzzle',1.4); cat.say('💕'); setTimeout(()=>other.say('💕'),300); setTimeout(()=>{cat.noCollide=other.noCollide=false;},1800); }; }
   }
   else note='unknown command';
@@ -488,6 +491,7 @@ function spawnProp(type,x,z){
   if(type==='tree'){ const t=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.5,3,8),mat(0x7a4b2a)); t.position.y=1.5; g.add(t); for(const [x,y,z,r] of [[0,3.6,0,1.6],[-1.1,3.0,0.4,1.1],[1.0,3.2,-0.5,1.2],[0.3,4.4,0.6,1.0]]){ const b=new THREE.Mesh(new THREE.SphereGeometry(r,10,8),mat(0x5aa14f)); b.position.set(x,y,z); g.add(b); }
     box(g,2.2,0.25,0.5,0x7a4b2a,1.0,2.2,0.3); p.r=1.3; p.h=2.35; p.cap=1; }
   if(type==='perch'){ box(g,0.6,0.25,0.6,0x8b5a3c,0,0.125,0); const c=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.5,8),mat(0xd8c3a5)); c.position.y=0.9; g.add(c); box(g,2.0,0.18,1.6,0x8b5a3c,0,1.7,0); box(g,1.8,0.08,1.4,0xb9574a,0,1.83,0); p.r=1.0; p.h=1.87; }
+  if(type==='catbed'){ const c=pick([0x8fb3ff,0xffb3c6,0xb5e0a0,0xffe08a]); box(g,1.3,0.28,1.3,darken(c,0.8),0,0.14,0); box(g,1.0,0.16,1.0,c,0,0.34,0); p.r=0.7; p.h=0.42; p.cap=1; }
   if(type==='cake'){ box(g,1.7,0.5,1.7,0xf3a6c4,0,0.25,0); box(g,1.75,0.12,1.75,0xfff1f6,0,0.52,0); box(g,1.1,0.42,1.1,0xfff1f6,0,0.78,0); box(g,1.15,0.1,1.15,0xf3a6c4,0,1.0,0);
     for(const [x,z] of [[-0.3,-0.3],[0.3,-0.3],[0,0.3]]){ box(g,0.08,0.4,0.08,0xffffff,x,1.25,z); const f=box(g,0.14,0.2,0.14,0xffb347,x,1.52,z); f.userData.flame=true; }
     for(let i=0;i<8;i++) box(g,0.1,0.1,0.1,pick([0xff6b6b,0x7fd6ff,0xffd166,0xb28dff]),Math.cos(i/8*Math.PI*2)*0.75,0.6,Math.sin(i/8*Math.PI*2)*0.75);
@@ -550,6 +554,9 @@ const events = {
     lou.giveUp(); lou.say('me?? 🥹'); setTimeout(()=>{ if(!lou.dead) lou.goTo(cake); }, 800);
     let j=0; for(const c of cats.values()) if(c!==lou) setTimeout(()=>{ if(!c.dead&&props.includes(cake)&&cake.amount>0){ c.giveUp(); c.goTo(cake); } }, 6000+j++*900);   // everyone shares once she's had the first bite
   },
+  beds(){ game.open('🛏️ MUSICAL BEDS', 15, musicalBeds); },
+  rlgl(){ game.open('🚦 RED LIGHT GREEN LIGHT', 15, redLightGreenLight); },
+  photo(){ takePhoto('streamer'); },
   weather(m){ const kind=m?.kind||pick(['rain','snow']); if(weather.kind) return; weather.kind=kind; weather.t0=performance.now(); banner(kind==='rain'?'🌧️ RAIN':'❄️ SNOW',2500); toast('weather: '+kind);
     if(kind==='rain'){ for(const c of cats.values()){ if(c.onProp){ if(c.inBox) c.hiding=true; continue; } c.giveUp(); c.say(pick(['!!','wet','😾','nope'])); setTimeout(()=>{ if(c.dead||!weather.kind) return; const spot=refuge(c); if(spot){ c.goTo(spot); } else { c.walkTo(c.g.position.x+rnd(-2,2), ZMIN+rnd(0.3,1.2), 5); c.onArrive=()=>{ c.setState('loaf'); c.timer=20; }; } }, rnd(100,900)); } }
     else { let i=0; for(const c of cats.values()){ if(c.onProp) continue; setTimeout(()=>{ if(c.dead) return; c.giveUp(); c.say(pick(['❄️','!!','snow!','🐾'])); if(Math.random()<0.5) zoomies(c,4); else { c.play('roll',1.2); } }, i++*300); } }
@@ -565,7 +572,9 @@ const events = {
 };
 function toast(t){ logLine('event','',t); }
 // secret likes/dislikes: a stable hash of the pair → -1..1. Nobody configures it, it just is.
-function affinity(a,b){ const k=[a.key,b.key].sort().join('|'); let h=2166136261; for(let i=0;i<k.length;i++){ h^=k.charCodeAt(i); h=Math.imul(h,16777619); } return ((h>>>0)%2001)/1000-1; }
+const REL={};   // learned deltas per pair ('a|b' sorted) — pets warm a pair up, tackles cool it; the server remembers
+function affinity(a,b){ const k=[a.key,b.key].sort().join('|'); let h=2166136261; for(let i=0;i<k.length;i++){ h^=k.charCodeAt(i); h=Math.imul(h,16777619); } return clamp(((h>>>0)%2001)/1000-1 + (REL[k]||0), -1, 1); }
+function nudgeRel(a,b,d){ const k=[a.key,b.key].sort().join('|'); REL[k]=clamp((REL[k]||0)+d,-0.9,0.9); net.send({type:'rel', a:a.key, b:b.key, d:REL[k]}); }
 const isFriend=(a,b)=>affinity(a,b)>0.55, isRival=(a,b)=>affinity(a,b)<-0.55;
 function near(me,r,filter){ let best=null,bd=r; for(const c of cats.values()){ if(c===me||c.dead||(filter&&!filter(c))) continue; const d=Math.hypot(c.g.position.x-me.g.position.x,c.g.position.z-me.g.position.z); if(d<bd){ bd=d; best=c; } } return best; }
 const faceAt=(me,o)=>{ me.facing=Math.atan2(-(o.g.position.z-me.g.position.z), o.g.position.x-me.g.position.x); };
@@ -819,6 +828,7 @@ function applyState(m){
     if(jumping && !c.wasJumping) c.jump(); c.wasJumping=jumping;
   }
   for(const c of [...cats.values()]) if(!seen.has(c.key)) removeCat(c);
+  const cen=document.getElementById('census'); if(cen){ const em={cat:'🐱',dog:'🐶',raccoon:'🦝',otter:'🦦'}; cen.innerHTML=''; for(const c of cats.values()){ const d=document.createElement('div'); d.textContent=(em[c.look.species]||'🐾')+' '+c.name+(c.state==='sleep'?' 💤':''); cen.appendChild(d); } }
   const h=document.getElementById('playhint'); if(h) h.textContent=cats.size?`${cats.size} cat${cats.size>1?'s':''} · click one to boop it`:'no cats yet — type !cat in chat';
 }
 function handlePoke(x,z){   // viewer clicked the stage: nearest cat reacts, or comes over to look
@@ -830,6 +840,7 @@ function handlePoke(x,z){   // viewer clicked the stage: nearest cat reacts, or 
 }
 if(PLAY){
   document.body.classList.add('hidden','play');
+  const cen=document.createElement('div'); cen.id='census'; document.body.appendChild(cen);
   const hint=document.createElement('div'); hint.id='playhint'; hint.textContent='connecting…'; document.body.appendChild(hint);
   canvas.addEventListener('pointerdown',e=>{ ray.setFromCamera(new THREE.Vector2(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1),camera);
     if(!ray.ray.intersectPlane(floor,hit)) return; net.send({type:'poke', x:hit.x, z:hit.z});
@@ -844,6 +855,7 @@ function applyInit(m){
   if(!envLocked && m.env) setEnv(m.env);
   if(m.species) SPECIES_MODE=m.species;
   if(m.daynight!=null && q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); }
+  if(m.rels) for(const [k,v] of Object.entries(m.rels)) REL[k]=v;
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }
   if(!zonesLocked && Array.isArray(m.zones)){ zones=m.zones; rebuildZones(); }
   if(booted){   // reconnect (server restart, wifi blip): keep everything that's on stage, only add what we're missing
@@ -911,11 +923,52 @@ if(AUTODEMO||TRAILER){ SPECIES_MODE=q.get('species')||'mixed'; if(!envLocked) se
 if(AUTODEMO) setTimeout(()=>{ spawnLou(); director.start(); }, 300);
 if(TRAILER) setTimeout(trailer, 500);
 
+// ---------- photo: everyone poses, one frame goes to the server (and Discord if a webhook is set) ----------
+let photoWanted=false, photoBy='', lastPhoto=0;
+function takePhoto(by){ if(PLAY) return 'not here'; if(performance.now()-lastPhoto<20000) return 'camera is recharging'; lastPhoto=performance.now(); photoBy=by||'streamer';
+  banner('📸 say cheese!',3200); for(const c of cats.values()){ if(c.onProp||c.dead) continue; c.giveUp(); c.facing=-Math.PI/2; c.setState('sit'); c.timer=4; c.look={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+4}; if(Math.random()<0.4) c.say(pick(['😸','cheese','✌️',':3'])); }
+  setTimeout(()=>{ banner(''); photoWanted=true; }, 3000); return 'posing…'; }
+
 // ---------- minigames ----------
 const bannerEl=document.getElementById('banner');
 function banner(text, ms){ bannerEl.textContent=text||''; bannerEl.classList.toggle('show',!!text); clearTimeout(banner.t); if(text&&ms) banner.t=setTimeout(()=>banner(''),ms); if(!PLAY) net.send({type:'banner',text:text||'',ms:ms||0}); }
 // cat race: !join during the window, line up, (optional twitch prediction window), 3-2-1, run right with bursts and distractions. Winner wears a crown until the next race.
 const race={ phase:'idle', racers:[], finished:[], t:0, opts:{}, winner:null, champion:null, butterfly:null };
+// generic join window used by the smaller games
+const game={ name:null, phase:'idle', players:[], onStart:null,
+  open(name, secs, onStart){ if(this.phase!=='idle'||race.phase!=='idle'||PLAY) return false; this.name=name; this.phase='join'; this.players=[]; this.onStart=onStart;
+    banner(`${name} — type !join`); toast(name+': join window'); for(const c of cats.values()) if(Math.random()<0.4) c.say(pick(['!join','me!','🙋']));
+    setTimeout(()=>{ if(this.phase!=='join') return; if(this.players.length<3){ for(const c of [...cats.values()].filter(c=>!c.dead&&!this.players.includes(c)).sort(()=>Math.random()-0.5).slice(0,4-this.players.length)) this.players.push(c); }
+      if(this.players.length<2){ banner('not enough players 😿',2500); this.phase='idle'; return; } this.phase='running'; this.onStart(this.players); }, secs*1000); return true; },
+  join(cat){ if(this.phase!=='join') return 'nothing to join right now'; if(this.players.includes(cat)) return 'already in'; if(this.players.length>=8) return 'full'; this.players.push(cat); cat.say('🙋'); return 'joined '+this.name; },
+  end(){ this.phase='idle'; this.name=null; for(const p of [...props]) if(p.type==='catbed') removeProp(p); banner(''); } };
+
+// musical beds: n players, n-1 beds. Music → wander; stop → rush; the one left standing is out. Last one wins.
+function musicalBeds(players){ let alive=players.filter(c=>!c.dead); const cx=0, cz=(ZMIN+ZMAX)/2;
+  const round=()=>{ alive=alive.filter(c=>!c.dead); if(alive.length<=1){ const w=alive[0]; if(w){ banner('🛏️ '+w.name+' wins!',5000); w.jump(); w.say('🏆'); stat(w,'wins'); } game.end(); return; }
+    for(const p of [...props]) if(p.type==='catbed') removeProp(p); const n=alive.length-1;
+    for(let i=0;i<n;i++){ const a=i/n*Math.PI*2; const f=freePoint(cx+Math.cos(a)*3.2, cz+Math.sin(a)*2.2); const p=spawnProp('catbed',f.x,f.z); p.temp=true; }
+    banner('🎵 🎵 🎵',0); for(const c of alive){ c.giveUp(); c.noCollide=true; c.walkTo(cx+rnd(-5,5), cz+rnd(-3,3), 3); c.onArrive=()=>{ if(game.phase==='running'&&!c.onProp&&c.wander) c.walkTo(cx+rnd(-5,5), cz+rnd(-3,3), 3); }; c.wander=true; }
+    setTimeout(()=>{ if(game.phase!=='running') return; banner('🛑 STOP!',2000); const beds=props.filter(p=>p.type==='catbed');
+      for(const c of alive){ c.wander=false; c.giveUp(); const free=beds.filter(b=>b.users<1).sort((a,b)=>Math.hypot(a.x-c.g.position.x,a.z-c.g.position.z)-Math.hypot(b.x-c.g.position.x,b.z-c.g.position.z))[0]; if(free) c.goTo(free); }
+      setTimeout(()=>{ if(game.phase!=='running') return; const out=alive.filter(c=>!c.onProp||c.onProp.type!=='catbed'); const loser=out.length?pick(out):null;
+        if(loser){ loser.say(pick(['aw','😾','no bed!'])); alive=alive.filter(c=>c!==loser); loser.noCollide=false; loser.giveUp(); loser.walkTo(loser.g.position.x+rnd(-4,4), ZMAX-0.5, 3); }
+        for(const c of alive){ if(c.onProp) c.dismountNow(); c.noCollide=true; } setTimeout(round, 1500); }, 4500); }, rnd(4000,8000)); };
+  round(); }
+// red light / green light: run to the laser on green, freeze on red; caught moving → out. First to the line wins.
+function redLightGreenLight(players){ let alive=players.filter(c=>!c.dead); const startX=-XMAX+1.5, finishX=XMAX-1.5;
+  alive.forEach((c,i)=>{ c.giveUp(); c.noCollide=true; c.racing=true; c.react=rnd(0.15,1.3); c.walkTo(startX, ZMIN+0.8+(ZMAX-ZMIN-1.6)*(alive.length<2?0.5:i/(alive.length-1)), 4); c.onArrive=()=>{ c.facing=0; c.timer=99; }; });
+  if(!laser){ laser=new THREE.Mesh(new THREE.CircleGeometry(0.18,12),new THREE.MeshBasicMaterial({color:0xff2b2b})); laser.rotation.x=-Math.PI/2; laser.position.set(finishX,0.02,(ZMIN+ZMAX)/2); laser.userData.t0=performance.now(); laser.userData.fixed=true; scene.add(laser); }
+  const finish=()=>{ for(const c of players){ c.racing=false; c.noCollide=false; } if(laser&&laser.userData.fixed){ scene.remove(laser); laser=null; } game.end(); };
+  let red=false; const tick=()=>{ if(game.phase!=='running') return; alive=alive.filter(c=>!c.dead);
+    const winner=alive.find(c=>c.g.position.x>=finishX-0.3); if(winner||alive.length===0){ if(winner){ banner('🏁 '+winner.name+' wins!',5000); winner.jump(); winner.say('🏆'); stat(winner,'wins'); } else banner('everyone got caught 😹',3000); setTimeout(finish,1500); return; }
+    red=!red;
+    if(!red){ banner('🟢 GREEN LIGHT',0); for(const c of alive){ setTimeout(()=>{ if(!red&&game.phase==='running'&&!c.dead){ c.racing=true; c.walkTo(finishX+0.5, c.g.position.z, rnd(2.4,3.4)); c.onArrive=()=>{ c.facing=0; }; } }, c.react*600); } setTimeout(tick, rnd(2000,4500)); }
+    else { banner('🔴 RED LIGHT',0); for(const c of alive){ setTimeout(()=>{ if(!c.dead){ c.giveUp(); c.timer=99; c.racing=true; } }, c.react*1000); }
+      setTimeout(()=>{ if(game.phase!=='running') return; const caught=alive.filter(c=>c.state==='walk'); for(const c of caught){ c.giveUp(); c.racing=false; c.noCollide=false; c.say(pick(['😱 caught','busted','oops'])); c.play('knocked',0.7); } alive=alive.filter(c=>!caught.includes(c)); }, 900);
+      setTimeout(tick, rnd(1800,3200)); } };
+  setTimeout(tick, 3500); }
+
 race.lane=function(i,n){ return ZMIN+0.8+(ZMAX-ZMIN-1.6)*(n<2?0.5:i/(n-1)); };
 race.join=function(cat){ if(this.phase!=='join') return 'no race open'; if(this.racers.includes(cat)) return 'already in'; if(this.racers.length>=8) return 'race is full';
   this.racers.push(cat); cat.say('🏁'); this.lineup(); return 'joined the race'; };
@@ -985,7 +1038,7 @@ function frame(now){
   if(!PLAY && zoneQuads.length) for(const c of cats.values()){ if(c.onProp) continue; const f=freePoint(c.g.position.x,c.g.position.z); c.g.position.x=f.x; c.g.position.z=f.z; }   // hard rule: never inside a zone
   for(const c of cats.values()) c.update(dt,t);
   race.update(dt,t);
-  if(laser){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
+  if(laser&&!laser.userData.fixed){ const k=(now-laser.userData.t0)/1000; laser.position.x=Math.sin(k*1.1)*7+Math.sin(k*3.7)*1.5; laser.position.z=(ZMIN+ZMAX)/2+Math.cos(k*1.7)*4; }
   for(const f of fishes){ const conf=f.userData.conf; f.userData.vy-=(conf?3:25)*dt; if(conf) f.userData.vy=Math.max(f.userData.vy,f.userData.rain?-16:-2.5); f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(conf){ f.rotation.x+=dt*4; f.position.x+=Math.sin(t*3+f.position.z)*dt*1.2; } if(f.position.y<(conf?0.03:0.6)){ scene.remove(f); f.userData.gone=true; } }
   fishes=fishes.filter(f=>!f.userData.gone);
   if(vac){ const k=(now-vac.t0)/1000; vac.mesh.position.x=-XMAX-2+k*(2*XMAX+4)/8.5; vac.mesh.rotation.y+=dt*4;
@@ -999,6 +1052,8 @@ function frame(now){
       else for(const c of cats.values()) if(!c.dead&&!c.onProp&&!c.anim&&Math.hypot(c.g.position.x-tr.position.x,c.g.position.z-tr.position.z)<1.1){ eatTreat(c,tr); break; } } }   // walked right over one
   treats=treats.filter(tr=>!tr.userData.gone);  if(weather.kind && Math.random()<(weather.kind==='rain'?0.9:0.5)){ const rain=weather.kind==='rain'; const f=box(scene,rain?0.05:0.18,rain?0.5:0.18,rain?0.05:0.05,rain?0x8fc7ff:0xffffff,rnd(-XMAX-3,XMAX+3),10+rnd(0,3),rnd(ZMIN-3,ZMAX+3)); f.userData.vy=rain?-14:-1.2; f.userData.conf=true; f.userData.rain=rain; fishes.push(f); }
   for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }
-  renderer.render(scene,camera); requestAnimationFrame(frame);
+  renderer.render(scene,camera);
+  if(photoWanted){ photoWanted=false; try{ const data=renderer.domElement.toDataURL('image/jpeg',0.82); net.send({type:'photo', data, by:photoBy}); toast('📸 sent'); }catch(e){ toast('photo failed: '+e.message); } }
+  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
