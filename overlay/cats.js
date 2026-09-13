@@ -763,7 +763,7 @@ function setEnv(name){ if(!ENVS.includes(name)) name='none'; if(name===envName&&
     furn('bed',-7,-6.2); solid(1.3,1.2,1.3,0x8b5a3c,-2.6,0.6,-8.6); box(g,0.15,0.9,0.15,0x333333,-2.6,1.65,-8.6); box(g,1.0,0.7,1.0,0xffe9a8,-2.6,2.4,-8.6);
     box(g,2.6,3.2,0.08,0xffb3c6,-9.5,5.4,ZB+0.26); box(g,1.8,1.3,0.1,0xf28c38,-9.5,5.6,ZB+0.36); box(g,1.2,0.4,0.1,0x2b2b33,-9.5,4.6,ZB+0.36);
     solid(2.2,2.0,1.2,0x8b5a3c,10,1.0,-8.5); box(g,0.9,0.08,0.9,0x5aa14f,10,2.4,-8.5); }
-  if(name==='kitchen'){ floor(0xe6e0d3); for(let i=-3;i<=3;i++) for(let j=-2;j<=2;j++) if((i+j)%2===0) decal(g,3.9,2.9,0xd6cfc0,i*4,0.0,j*3-2,'py');   // flat tiles: boxes here showed their edges as lines round everything walls(0xf3e7c6); win(-1);
+  if(name==='kitchen'){ floor(0xe6e0d3); for(let i=-3;i<=3;i++) for(let j=-2;j<=2;j++) if((i+j)%2===0) decal(g,3.9,2.9,0xd6cfc0,i*4,0.0,j*3-2,'py'); walls(0xf3e7c6); win(-1);
     solid(2.4,5.2,1.4,0xdde3e8,10.5,2.6,-9.0); box(g,0.15,1.2,0.15,0x8a8f96,9.5,3.4,-8.2); box(g,2.4,0.1,1.4,0xb8c0c8,10.5,3.6,-9.0);
     furn('counter',-8,-8.6); furn('counter',-4.2,-8.6); box(g,2.2,0.08,1.1,0x9fd0ff,-8,1.8,-8.6);
     solid(3.4,1.6,1.4,0xd8d8d8,3.5,0.8,-8.6); for(const [x,z] of [[-0.8,-0.35],[0.8,-0.35],[-0.8,0.35],[0.8,0.35]]) box(g,0.7,0.06,0.7,0x222222,3.5+x,1.64,-8.6+z); box(g,3.4,0.9,0.15,0xc9c9c9,3.5,2.05,-9.25);
