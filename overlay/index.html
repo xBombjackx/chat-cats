@@ -33,49 +33,65 @@
 </div>
 
 <div class="panel" id="stream">
-  <h2>Streamer events</h2>
-  <div class="row">
-    <button class="ev" data-ev="wrestlemania">Cat Wrestlemania</button>
-    <button class="ev" data-ev="catnip">Load catnip</button>
-    <button class="ev" data-ev="fish">Fish rain</button>
-    <button class="ev" data-ev="laser">Laser pointer</button>
-    <button class="ev" data-ev="nap">Nap time</button>
-    <button class="ev" data-ev="race">Cat race</button>
-    <button class="ev" data-ev="feeding">Feeding time</button><button class="ev" data-ev="treat">Treat</button><button class="ev" data-ev="boxes">Box drop</button>
-    <button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="confetti">Confetti</button><button class="ev" data-ev="birthday">🎂 Birthday girl</button><button class="ev" data-ev="weather">Weather</button><button class="ev" data-ev="beds">Musical beds</button><button class="ev" data-ev="rlgl">Red light green light</button><button class="ev" data-ev="tug">Tug of war</button><button class="ev" data-ev="photo">📸 Photo</button><button class="ev" data-ev="catniproulette">Catnip roulette</button><button class="ev" data-ev="boxroulette">Box roulette</button>
-  </div>
-  <h2 style="margin-top:10px">Props <span style="font-weight:600;opacity:.6;font-size:12px">click a button, then click the stage</span></h2>
-  <div class="row">
-    <button data-prop="bowl">Food bowl</button><button data-prop="water">Water</button>
-    <button data-prop="toy">Ball</button><button data-prop="post">Scratch post</button><button data-prop="box">Box</button><button data-prop="perch">Perch</button>
-    <button id="refill">Refill</button><button id="clearprops">Clear</button><button id="clearcats">Clear cats</button>
-  </div>
-  <h2 style="margin-top:10px">No-go zones <span style="font-weight:600;opacity:.6;font-size:12px">drag a box over your webcam etc.</span></h2>
-  <div class="row"><button id="drawzone">Draw zone</button><button id="clearzones">Clear zones</button></div>
-  <h2 style="margin-top:10px">Room <span style="font-weight:600;opacity:.6;font-size:12px">saved for every overlay · or ?env=kitchen in the URL</span></h2>
-  <div class="row"><button data-env="none">None (transparent)</button><button data-env="bedroom">Bedroom</button><button data-env="kitchen">Kitchen</button><button data-env="living">Living room</button><button data-env="garden">Garden</button></div>
-  <div class="row" style="align-items:center"><span style="font-weight:800;font-size:12px">Holiday</span><button data-holiday="none">none</button><button data-holiday="halloween">🎃 Halloween</button><button data-holiday="xmas">🎄 Christmas</button></div>
-  <h2 style="margin-top:8px">Animals <span style="font-weight:600;opacity:.6;font-size:12px">what !cat spawns · mixed = each command its own</span></h2>
-  <div class="row"><button data-species="cat">Cats</button><button data-species="dog">Dogs</button><button data-species="raccoon">Raccoons</button><button data-species="otter">Otters</button><button data-species="mixed">Mixed</button></div>
-  <h2 style="margin-top:8px">Settings</h2>
-  <div class="row" style="align-items:center">
-    <label>cap <input type="number" id="s-maxCats" min="1" max="200" style="width:56px"></label>
-    <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100" style="width:70px"></label>
-    <label>respawn h <input type="number" id="s-respawnHours" min="0" style="width:52px"></label>
-    <label>auto refill min <input type="number" id="s-autoRefillMin" min="0" style="width:52px"></label>
-  </div>
-  <div class="row" style="align-items:center">
-    <label><input type="checkbox" id="s-predictions"> race predictions</label>
-    <label><input type="checkbox" id="s-daynight"> day/night by the clock</label>
-    <button id="savesettings">Save</button>
-  </div>
-  <div class="hint" id="s-note">…</div>
-  <div class="hint">Twitch connect, channel-point rewards, usage and leaderboards: <a href="/admin" target="_blank">/admin</a>.</div>
-  <div class="row"><button id="bg">Toggle demo background</button><button id="tags">Toggle name tags</button></div>
-  <div class="hint">Transparent when the demo background is off — drop it in OBS as a browser source. Prop layout is saved to the server when placed.</div>
+  <div class="tabs"><button data-tab="events" class="on">Events</button><button data-tab="games">Games</button><button data-tab="props">Props</button><button data-tab="room">Room</button><button data-tab="settings">Settings</button></div>
+  <section data-tab="events">
+    <div class="row">
+      <button class="ev" data-ev="feeding">Feeding time</button><button class="ev" data-ev="treat">Treat</button><button class="ev" data-ev="boxes">Box drop</button>
+      <button class="ev" data-ev="fish">Fish rain</button><button class="ev" data-ev="laser">Laser pointer</button><button class="ev" data-ev="catnip">Load catnip</button><button class="ev" data-ev="nap">Nap time</button>
+      <button class="ev" data-ev="vacuum">Vacuum</button><button class="ev" data-ev="doorbell">Doorbell</button><button class="ev" data-ev="cucumber">Cucumber</button><button class="ev" data-ev="weather">Weather</button>
+      <button class="ev" data-ev="wrestlemania">Wrestlemania</button><button class="ev" data-ev="confetti">Confetti</button><button class="ev" data-ev="birthday">🎂 Birthday girl</button><button class="ev" data-ev="photo">📸 Photo</button>
+    </div>
+    <div class="hint">Also Stream Deck URLs: <code>/api/event/&lt;name&gt;</code>.</div>
+  </section>
+  <section data-tab="games" hidden>
+    <div class="row">
+      <button class="ev" data-ev="race">Cat race</button><button class="ev" data-ev="beds">Musical beds</button><button class="ev" data-ev="rlgl">Red light green light</button>
+      <button class="ev" data-ev="tug">Tug of war</button><button class="ev" data-ev="boxroulette">Box roulette</button><button class="ev" data-ev="catniproulette">Catnip roulette</button>
+    </div>
+    <div class="hint">Chat joins with <b>!join</b> (race, beds, red light, tug), pulls with <b>!pull</b>, guesses with <b>!pick 1-5</b>.</div>
+  </section>
+  <section data-tab="props" hidden>
+    <div class="hint">Click a button, then click the stage to place it. Layout is saved.</div>
+    <div class="row">
+      <button data-prop="bowl">Food bowl</button><button data-prop="water">Water</button><button data-prop="toy">Ball</button>
+      <button data-prop="post">Scratch post</button><button data-prop="box">Box</button><button data-prop="perch">Perch</button>
+    </div>
+    <div class="row"><button id="refill">Refill bowls</button><button id="clearprops">Clear props</button><button id="clearcats">Clear cats</button></div>
+    <h2 style="margin-top:10px">No-go zones</h2>
+    <div class="hint">Drag a box over your webcam or alerts; cats stay out of it.</div>
+    <div class="row"><button id="drawzone">Draw zone</button><button id="clearzones">Clear zones</button></div>
+  </section>
+  <section data-tab="room" hidden>
+    <h2>Room <span class="sub">saved for every overlay · or ?env=kitchen in the URL</span></h2>
+    <div class="row"><button data-env="none">None (transparent)</button><button data-env="bedroom">Bedroom</button><button data-env="kitchen">Kitchen</button><button data-env="living">Living room</button><button data-env="garden">Garden</button></div>
+    <h2 style="margin-top:10px">Holiday</h2>
+    <div class="row"><button data-holiday="none">none</button><button data-holiday="halloween">🎃 Halloween</button><button data-holiday="xmas">🎄 Christmas</button></div>
+    <h2 style="margin-top:10px">Animals <span class="sub">what !cat spawns · mixed = each command its own</span></h2>
+    <div class="row"><button data-species="cat">Cats</button><button data-species="dog">Dogs</button><button data-species="raccoon">Raccoons</button><button data-species="otter">Otters</button><button data-species="mixed">Mixed</button></div>
+    <div class="row" style="margin-top:10px"><button id="bg">Toggle demo background</button><button id="tags">Toggle name tags</button></div>
+    <div class="hint">Transparent when the demo background is off — drop it in OBS as a browser source.</div>
+  </section>
+  <section data-tab="settings" hidden>
+    <div class="row" style="align-items:center">
+      <label>cat cap <input type="number" id="s-maxCats" min="1" max="200"></label>
+      <label>cooldown ms <input type="number" id="s-cooldownMs" min="0" step="100"></label>
+    </div>
+    <div class="row" style="align-items:center">
+      <label>respawn hours <input type="number" id="s-respawnHours" min="0"></label>
+      <label>auto refill min <input type="number" id="s-autoRefillMin" min="0"></label>
+    </div>
+    <div class="row" style="align-items:center">
+      <label><input type="checkbox" id="s-predictions"> race predictions</label>
+      <label><input type="checkbox" id="s-daynight"> day/night by the clock</label>
+    </div>
+    <div class="row"><button id="savesettings">Save</button><span class="hint" id="s-note" style="margin:0;align-self:center">…</span></div>
+    <div class="hint">Twitch connect, channel-point rewards, usage and leaderboards: <a href="/admin" target="_blank">/admin</a>.</div>
+  </section>
+</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>document.querySelectorAll('#stream .tabs button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#stream .tabs button').forEach(x=>x.classList.toggle('on',x===b)); document.querySelectorAll('#stream section').forEach(s=>s.hidden=s.dataset.tab!==b.dataset.tab); });</script>
 <script src="cats.js"></script>
 <script src="net.js"></script>
 </body>
