@@ -240,7 +240,7 @@ class Cat {
       for(const l of this.legs) l.rotation.z *= 0.8;
       if(s==='idle'){ this.timer-=dt; if(this.timer<=0) this.pickIdle();
         if(!PLAY && !this.anim && Math.random()<dt*0.02){ if(this.hunger>0.85) this.say(pick(['😾','hungry…','grr','feed me'])); else if(this.hunger<0.15) this.say(voice(this,'purr')); }   // mood shows
-        if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ this.look={x:o.g.position.x,z:o.g.position.z,until:now+rnd(1.2,2.5)}; if(Math.abs(normA(Math.atan2(-(o.g.position.z-g.position.z), o.g.position.x-g.position.x)-this.facing))>1.2) faceAt(this,o); const aff=affinity(this,o);
+        if(!PLAY && !this.anim && !this.noCollide){ this.glanceT=(this.glanceT??rnd(0.5,2))-dt; if(this.glanceT<=0){ this.glanceT=rnd(1,2.5); const o=near(this,3.5); if(o && Math.random()<0.6){ this.gaze={x:o.g.position.x,z:o.g.position.z,until:now+rnd(1.2,2.5)}; if(Math.abs(normA(Math.atan2(-(o.g.position.z-g.position.z), o.g.position.x-g.position.x)-this.facing))>1.2) faceAt(this,o); const aff=affinity(this,o);
           if((aff<-0.55 || (this.T.hiss>2 && aff<0.2)) && Math.random()<0.35*this.T.hiss){ this.play('arch',0.8); this.say(voice(this,'hiss')); } else if(aff>0.55 && Math.random()<0.2*this.T.greet) this.say(voice(this,'purr')); } } } }
       if(s==='sit'){ b.rotation.z = -0.28; b.position.y=0.1; this.head.rotation.x = Math.sin(now*0.8)*0.12; this.timer-=dt; if(this.timer<=0){ this.setState('idle'); this.timer=1; } }
       else if(!lying) b.rotation.z *= 0.8;
@@ -256,7 +256,7 @@ class Cat {
     // neck: idle wander, look at whatever caught its eye, bob while walking — only when nothing else is driving the head
     if(!this.anim && !posed && s!=='groom' && !this.inBox){
       let yaw=0.22*Math.sin(now*0.6+this.ph)+0.12*Math.sin(now*1.7+this.ph*2), pitch=0.05*Math.sin(now*0.9+this.ph);
-      if(this.look && now<this.look.until) yaw=clamp(normA(Math.atan2(-(this.look.z-g.position.z), this.look.x-g.position.x)-this.facing),-1.1,1.1);
+      if(this.gaze && now<this.gaze.until) yaw=clamp(normA(Math.atan2(-(this.gaze.z-g.position.z), this.gaze.x-g.position.x)-this.facing),-1.1,1.1);
       if(s==='walk'){ pitch+=Math.sin(now*this.speed*4)*0.06; yaw+=clamp((this.turn||0)*0.8,-0.6,0.6); }
       const k=Math.min(1,dt*6); this.head.rotation.y+=(yaw-this.head.rotation.y)*k; this.head.rotation.z+=(pitch-this.head.rotation.z)*k; }
     const ry = this.facing; let dr=((ry-g.rotation.y+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI; this.turn=dr; g.rotation.y += dr*Math.min(1,dt*10);
@@ -337,9 +337,9 @@ class Cat {
   pickIdle(){
     if(this.afk){ if(!this.onProp && this.state!=='sleep'){ this.setState('sleep'); } this.timer=30; if(this.onProp){ this.hiding=false; this.setState('sleep'); } return; }   // parked until they type again
     if(this.following){ const f=this.following; if(f.cat.dead||performance.now()>f.until){ this.following=null; } else { const o=f.cat, dx=this.g.position.x-o.g.position.x, dz=this.g.position.z-o.g.position.z, d=Math.hypot(dx,dz)||1;
-      if(d>2.4){ this.walkTo(o.g.position.x+dx/d*1.7, o.g.position.z+dz/d*1.7, Math.max(2.5,o.speed||2.5)); this.onArrive=()=>{ this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.timer=rnd(0.5,1.5); }; }
-      else { this.look={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.setState('sit'); this.timer=rnd(1,2); } return; } }
-    if(this.onProp && vac){ if(this.inBox){ this.hiding=true; this.setState('loaf'); } else { this.setState('sit'); this.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+3}; } this.timer=rnd(1.5,3); return; }
+      if(d>2.4){ this.walkTo(o.g.position.x+dx/d*1.7, o.g.position.z+dz/d*1.7, Math.max(2.5,o.speed||2.5)); this.onArrive=()=>{ this.gaze={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.timer=rnd(0.5,1.5); }; }
+      else { this.gaze={x:o.g.position.x,z:o.g.position.z,until:performance.now()/1000+2}; this.setState('sit'); this.timer=rnd(1,2); } return; } }
+    if(this.onProp && vac){ if(this.inBox){ this.hiding=true; this.setState('loaf'); } else { this.setState('sit'); this.gaze={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+3}; } this.timer=rnd(1.5,3); return; }
     if(this.onProp && this.sneakTarget){ const t=this.sneakTarget; if(t.dead||Math.hypot(t.g.position.x-this.g.position.x,t.g.position.z-this.g.position.z)>13){ this.sneakTarget=null; }
       else if(this.inBox){ this.hiding=true; this.setState('loaf'); this.timer=rnd(5,9); this.sneakWaits=(this.sneakWaits||0)+1; if(this.sneakWaits>2) this.sneakTarget=null; return; }
       else { faceAt(this,t); this.play('crouch',rnd(3,6)); return; } }   // crouch ends → sneakPounce leaps off
@@ -372,7 +372,7 @@ class Cat {
         if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
     const rv=near(this,3,c=>isRival(this,c)); if(rv && Math.random()<0.5){ const dx=this.g.position.x-rv.g.position.x, dz=this.g.position.z-rv.g.position.z, d=Math.hypot(dx,dz)||1; this.say(pick(['hmph','…'])); this.walkTo(this.g.position.x+dx/d*4, this.g.position.z+dz/d*3); return; }   // not sitting next to *that* one
     const lively=0.6+0.8*ENERGY;   // busy chat → more walking/zoomies, dead chat → more naps
-    const pool=[['walk',0.45*T.walk*(1-0.5*NIGHT)*lively],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',(0.08+0.1*NIGHT)*T.sleep],['sleep',(0.03+0.15*NIGHT+0.08*(1-ENERGY))*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom*lively]];
+    const pool=[['walk',0.45*T.walk*(1-0.5*NIGHT)*lively],['sit',0.2*T.sit],['groom',0.09],['lickfoot',0.03],['lickbutt',0.03],['loaf',(0.08+0.1*NIGHT)*T.sleep],['sleep',(0.03+0.15*NIGHT+0.04*clamp(1-2*ENERGY,0,1))*T.sleep],['stretch',0.02],['twitch',0.02],['shake',0.02],['peek',0.015],['turn',0.015],['zoom',0.015*T.zoom*lively]];
     let r=Math.random()*pool.reduce((a,[,w])=>a+w,0), act='walk'; for(const [a,w] of pool){ r-=w; if(r<=0){ act=a; break; } }
     switch(act){
       case 'walk': this.walkTo(this.g.position.x+rnd(-5,5), this.g.position.z+rnd(-4,4)); break;
@@ -453,7 +453,7 @@ function handleChat(user, msg, key, away, lvl){
   else if(cmd==='sneak'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; note=sneak(cat, t&&t!==cat?t:null)?'sneaking':'nobody to sneak up on'; }
   else if(cmd==='stalk'){ const who=(parts[0]||'').replace(/^@/,''); const t=who?findCat(who):null; stalk(cat, t&&t!==cat?t:null); }
   else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else { nudgeRel(cat,o,-0.08); wrestle(cat,o,false); } }
-  else if(cmd==='pull'){ if(tug.on&&tug.side.has(key)){ tug.force[tug.side.get(key)]+=1; cat.play('tackle',0.4,true); note='pull!'; } else note='no tug of war on'; }
+  else if(cmd==='pull'){ if(tug.on&&tug.side.has(key)){ tug.force[tug.side.get(key)]+=1; cat.pullT=performance.now(); note='pull!'; } else note='no tug of war on'; }
   else if(cmd==='pick'){ const n=+parts[0]; if(!roulette.on) note='no roulette running'; else if(!(n>=1&&n<=5)) note='pick 1-5'; else { roulette.picks[key]=n; cat.say('📦 '+n); note='picked '+n; } }
   else if(cmd==='help'||cmd==='commands'){ cat.say(pick(['!meow !jump !zoomies !sleep','!pet @name · !sneak · !stalk','!cat color pattern hat size','!name !afk !follow @name','!join for games · !lick · !roll'])); note='help'; }
   else if(cmd==='level'){ cat.say(`level ${lvl||0} ${lvl>=10?'🌟':lvl>=5?'⭐':'✨'}`); note='level '+(lvl||0); }
@@ -518,10 +518,11 @@ let laser=null, fishes=[], busy=false, vac=null, treats=[]; const weather={kind:
 let ENERGY=0.5, AUTO_REFILL_MIN=30, lastRefill=performance.now(), CHAOS=1;   // CHAOS scales fights, stalks, sneaks, ambushes (setting, 0.25–3)   // ENERGY 0 (dead chat) … 1 (busy) from messages per minute
 function setEnergy(perMin){ ENERGY=clamp(perMin/25,0,1); }
 // cats react to what chat says, not just commands
-function vibe(kind){ const list=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.anim&&c.state!=='sleep'); if(!list.length) return; const some=list.sort(()=>Math.random()-0.5).slice(0,1+Math.floor(list.length/3));
+function vibe(kind){ const inGame=c=>c.racing||c.noCollide||c.riding||(race.phase!=='idle'&&race.racers.includes(c))||(game.phase!=='idle'&&game.players.includes(c));
+  const list=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.anim&&c.state!=='sleep'&&!inGame(c)); if(!list.length) return; const some=list.sort(()=>Math.random()-0.5).slice(0,1+Math.floor(list.length/3));
   let i=0; for(const c of some) setTimeout(()=>{ if(c.dead) return;
     if(kind==='lol'){ c.say(pick(['😹','lol','hehe','😆'])); if(Math.random()<0.5) c.play('roll',1.2); }
-    else if(kind==='aww'){ c.say(pick(['💕','🥹',':3','prrr'])); c.look={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+3}; }
+    else if(kind==='aww'){ c.say(pick(['💕','🥹',':3','prrr'])); c.gaze={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+3}; }
     else if(kind==='hi'){ c.facing=-Math.PI/2; c.wave(); c.say(pick(['hi!','o/','hello','👋'])); }
     else if(kind==='f'){ c.giveUp(); c.facing=-Math.PI/2; c.setState('sit'); c.timer=4; c.say('F'); }
     else if(kind==='hype'){ c.jump(); c.say(pick(['🎉','POG','LETS GO','!!'])); }
@@ -535,7 +536,7 @@ const events = {
     const [a,b] = list.sort(()=>Math.random()-0.5).slice(0,2); wrestle(a,b,true);
   },
   refill(){ refill(); toast('refilled'); },
-  clearcats(){ for(const c of [...cats.values()]) removeCat(c); race.end(); busy=false; banner(''); toast('all cats cleared'); },
+  clearcats(){ for(const c of [...cats.values()]) removeCat(c); race.end(); if(game.phase!=='idle') game.end(); busy=false; banner(''); toast('all cats cleared'); },
   clearprops(){ clearProps(); toast('props cleared'); },
   catnip(){ for(const c of cats.values()){ for(const e of c.eyes) e.scale.x=3; zoomies(c, 8); c.say(pick(['!!!','WHEEE','MRRAOW','😵‍💫'])); setTimeout(()=>{for(const e of c.eyes) e.scale.x=1;}, 8500); } toast('catnip loaded'); },
   race(m){ race.start({predictions:!!m?.predictions, joinSecs:m?.joinSecs}); },
@@ -543,7 +544,7 @@ const events = {
     const z=(ZMIN+ZMAX)/2; g.position.set(-XMAX-2,0,z); scene.add(g); vac={mesh:g,t0:performance.now(),z}; banner('🤖 VACUUM',1500); toast('vacuum');
     for(const c of cats.values()){ if(c.onProp){ if(c.inBox) c.hiding=true; c.say(pick(['👀','…'])); continue; } c.giveUp(); c.say(pick(['!!','😱','NOPE','hss'])); c.play('arch',0.5);
       setTimeout(()=>{ if(c.dead||!vac) return; const spot=refuge(c); if(spot){ c.goTo(spot); c.say(pick(['up!','hide!','📦'])); }   // get off the floor if anything's free
-        else { const away=c.g.position.z<z?ZMIN+0.5:ZMAX-0.5; c.walkTo(c.g.position.x+rnd(-3,3), away, 6); c.onArrive=()=>{ if(vac){ c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+9}; c.play('arch',1.0); c.timer=9; } }; } }, rnd(100,600)); }
+        else { const away=c.g.position.z<z?ZMIN+0.5:ZMAX-0.5; c.walkTo(c.g.position.x+rnd(-3,3), away, 6); c.onArrive=()=>{ if(vac){ c.gaze={x:vac.mesh.position.x,z:vac.mesh.position.z,until:performance.now()/1000+9}; c.play('arch',1.0); c.timer=9; } }; } }, rnd(100,600)); }
     setTimeout(()=>{ if(!vac) return; const r=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.riding&&(c.trait==='zoomy'||c.trait==='chill')&&Math.hypot(c.g.position.x-vac.mesh.position.x,c.g.position.z-vac.mesh.position.z)<7);   // one brave one hops on for a ride
       if(r.length&&Math.random()<0.7){ const c=pick(r); c.giveUp(); c.riding=true; c.noCollide=true; c.elev=0.35; c.setState('sit'); c.timer=99; c.say(pick(['wheee','🤖🐾','taxi!'])); } }, 2200);
     setTimeout(()=>{ if(vac){ scene.remove(vac.mesh); vac=null; } for(const c of cats.values()){ if(c.riding){ c.riding=false; c.noCollide=false; c.elev=0; c.g.position.y=0; c.g.position.x=clamp(c.g.position.x,-XMAX,XMAX); c.say('again!'); c.giveUp(); } else if(!c.dead&&Math.random()<0.5) c.say(pick(['…','phew','😾'])); } }, 9500); },
@@ -558,7 +559,7 @@ const events = {
     g.position.set(clamp(c.g.position.x-Math.cos(c.facing)*1.4,-XMAX,XMAX),0,clamp(c.g.position.z+Math.sin(c.facing)*1.4,ZMIN,ZMAX)); scene.add(g); toast('cucumber behind '+c.name);
     setTimeout(()=>{ if(c.dead){ scene.remove(g); return; } c.giveUp(); c.facing+=Math.PI;
       setTimeout(()=>{ if(c.dead) return; c.jumpScale=1.9; c.jump(); c.play('arch',1.0); c.say(pick(['😱','WHAT','!!!','AAAA']),'pow'); setTimeout(()=>{ if(!c.dead){ c.jumpScale=1; zoomies(c,3); } },700);
-        for(const o of cats.values()) if(o!==c&&!o.dead&&Math.hypot(o.g.position.x-c.g.position.x,o.g.position.z-c.g.position.z)<5){ o.look={x:c.g.position.x,z:c.g.position.z,until:performance.now()/1000+2}; if(Math.random()<0.5) o.say(pick(['?','lol','😹'])); } },400); }, 1500);
+        for(const o of cats.values()) if(o!==c&&!o.dead&&Math.hypot(o.g.position.x-c.g.position.x,o.g.position.z-c.g.position.z)<5){ o.gaze={x:c.g.position.x,z:c.g.position.z,until:performance.now()/1000+2}; if(Math.random()<0.5) o.say(pick(['?','lol','😹'])); } },400); }, 1500);
     setTimeout(()=>scene.remove(g), 9000); },
   treat(m){ const x=Number.isFinite(+m?.x)?+m.x:rnd(-XMAX+2,XMAX-2), z=Number.isFinite(+m?.z)?+m.z:rnd(ZMIN+1,ZMAX-0.5); const f=freePoint(x,z);
     const t=box(scene,0.5,0.25,0.12,0xffa64d,f.x,12,f.z); box(t,0.2,0.35,0.1,0xffa64d,-0.32,0,0); t.userData.vy=0; treats.push(t); toast('treat incoming'); },
@@ -850,8 +851,8 @@ document.querySelectorAll('[data-holiday]').forEach(b=>b.onclick=()=>{ setHolida
 (function(){ const F=['maxCats','cooldownMs','respawnHours','autoRefillMin','chaos'], key=q.get('key')||''; const el=id=>document.getElementById(id);
   const show=s=>{ for(const k of F) el('s-'+k).value=s[k]; el('s-predictions').checked=!!s.predictions; el('s-daynight').checked=!!s.daynight; el('s-note').textContent='saved on the server'; };
   fetch('/api/settings',{headers:{'x-key':key}}).then(r=>r.ok?r.json():Promise.reject()).then(show).catch(()=>{ el('s-note').textContent='no server here — only the cat cap applies, locally'; });
-  el('savesettings').onclick=async()=>{ const body={predictions:el('s-predictions').checked?1:0, daynight:el('s-daynight').checked?1:0}; for(const k of F) body[k]=+el('s-'+k).value;
-    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay(); AUTO_REFILL_MIN=body.autoRefillMin; CHAOS=body.chaos||1;
+  el('savesettings').onclick=async()=>{ const body={predictions:el('s-predictions').checked?1:0, daynight:el('s-daynight').checked?1:0}; for(const k of F){ const v=el('s-'+k).value.trim(); if(v!==''&&Number.isFinite(+v)) body[k]=+v; }   // blank = keep
+    if(body.maxCats>0) MAX_CATS=body.maxCats; DAYNIGHT=!!body.daynight; applyTimeOfDay(); if(body.autoRefillMin>=0) AUTO_REFILL_MIN=body.autoRefillMin; if(body.chaos>0) CHAOS=body.chaos;
     try{ const r=await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':key},body:JSON.stringify(body)}); if(r.ok){ show(await r.json()); toast('settings saved'); } else throw 0; }catch{ el('s-note').textContent='applied locally (no server)'; } }; })();
 document.querySelectorAll('[data-species]').forEach(b=>b.onclick=()=>{ SPECIES_MODE=b.dataset.species; toast('animals: '+b.dataset.species); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({species:b.dataset.species})}).catch(()=>{}); });
 document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
@@ -941,7 +942,8 @@ const director={ timers:[], on:false,
       this.timers.push(setTimeout(chat, rnd(2500,7000))); };
     const ev=()=>{ if(!this.on) return; const name=pick(['race','treat','treat','boxes','feeding','cucumber','doorbell','fish','laser','catnip','wrestlemania','vacuum','confetti','birthday','beds','rlgl','weather','catniproulette','boxroulette','tug']);
       if(name==='race'){ events.race({joinSecs:8}); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!join'); },2000)); }
-      else if(name==='tug'){ events.tug(); this.timers.push(setTimeout(()=>{ const ps=[...cats.values()].sort(()=>Math.random()-0.5).slice(0,6); for(const c of ps) handleChat(c.name,'!join'); const pulls=setInterval(()=>{ if(!tug.on){ clearInterval(pulls); return; } const c=pick(ps); if(c&&!c.dead) handleChat(c.name,'!pull'); },400); this.timers.push(pulls); },2000)); }
+      else if(name==='tug'){ events.tug(); const ps=[...cats.values()].sort(()=>Math.random()-0.5).slice(0,6); this.timers.push(setTimeout(()=>{ for(const c of ps) handleChat(c.name,'!join'); },2000));
+        this.timers.push(setTimeout(()=>{ const pulls=setInterval(()=>{ if(!tug.on){ clearInterval(pulls); return; } const c=pick(ps); if(c&&!c.dead) handleChat(c.name,'!pull'); },400); this.timers.push(pulls); },17000)); }
       else if(name==='boxroulette'){ events.boxroulette(); this.timers.push(setTimeout(()=>{ for(const c of [...cats.values()].sort(()=>Math.random()-0.5).slice(0,5)) handleChat(c.name,'!pick '+(1+Math.floor(Math.random()*5))); },3000)); }
       else events[name]();
       this.timers.push(setTimeout(ev, ['race','beds','rlgl','birthday','tug'].includes(name)?70000:name==='boxroulette'?30000:rnd(25000,45000))); };
@@ -978,7 +980,7 @@ if(TRAILER) setTimeout(trailer, 500);
 // ---------- photo: everyone poses, one frame goes to the server (and Discord if a webhook is set) ----------
 let photoWanted=false, photoBy='', lastPhoto=0;
 function takePhoto(by){ if(PLAY) return 'not here'; if(performance.now()-lastPhoto<20000) return 'camera is recharging'; lastPhoto=performance.now(); photoBy=by||'streamer';
-  banner('📸 say cheese!',3200); for(const c of cats.values()){ if(c.onProp||c.dead) continue; c.giveUp(); c.facing=-Math.PI/2; c.setState('sit'); c.timer=4; c.look={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+4}; if(Math.random()<0.4) c.say(pick(['😸','cheese','✌️',':3'])); }
+  banner('📸 say cheese!',3200); for(const c of cats.values()){ if(c.onProp||c.dead) continue; c.giveUp(); c.facing=-Math.PI/2; c.setState('sit'); c.timer=4; c.gaze={x:c.g.position.x,z:c.g.position.z+20,until:performance.now()/1000+4}; if(Math.random()<0.4) c.say(pick(['😸','cheese','✌️',':3'])); }
   setTimeout(()=>{ banner(''); photoWanted=true; }, 3000); return 'posing…'; }
 
 // ---------- minigames ----------
@@ -993,22 +995,25 @@ const game={ name:null, phase:'idle', players:[], onStart:null,
     setTimeout(()=>{ if(this.phase!=='join') return; if(this.players.length<3){ for(const c of [...cats.values()].filter(c=>!c.dead&&!this.players.includes(c)).sort(()=>Math.random()-0.5).slice(0,4-this.players.length)) this.players.push(c); }
       if(this.players.length<2){ banner('not enough players 😿',2500); this.phase='idle'; return; } this.phase='running'; this.onStart(this.players); }, secs*1000); return true; },
   join(cat){ if(this.phase!=='join') return 'nothing to join right now'; if(this.players.includes(cat)) return 'already in'; if(this.players.length>=8) return 'full'; this.players.push(cat); cat.say('🙋'); return 'joined '+this.name; },
-  end(){ this.phase='idle'; this.name=null; for(const p of [...props]) if(p.type==='catbed') removeProp(p); banner(''); } };
+  end(){ const f=this.onEnd; this.onEnd=null; this.phase='idle'; this.name=null; for(const p of [...props]) if(p.type==='catbed') removeProp(p); banner(''); if(f) f(); } };
 
 // musical beds: n players, n-1 beds. Music → wander; stop → rush; the one left standing is out. Last one wins.
 // tug of war: two teams on a yarn string; every !pull from a team member yanks it; 25 s or a big enough lead wins
 const tug={on:false, side:new Map(), force:{red:0,blue:0}, rope:null, offset:0};
 function tugOfWar(players){ tug.on=true; tug.side=new Map(); tug.force={red:0,blue:0}; tug.offset=0; const cz=(ZMIN+ZMAX)/2;
   const rope=tug.rope=new THREE.Group(); box(rope,9,0.12,0.12,0xe0563b,0,0.35,0); box(rope,0.4,0.4,0.4,0xffd23f,0,0.35,0); rope.position.set(0,0,cz); scene.add(rope);
-  players.forEach((c,i)=>{ const side=i%2?'blue':'red'; tug.side.set(c.key,side); c.giveUp(); c.noCollide=true; c.tugSide=side; const k=Math.floor(i/2); c.walkTo(side==='red'?-5-k*1.3:5+k*1.3, cz+(k%2?0.9:-0.9), 4); c.onArrive=()=>{ c.facing=side==='red'?0:Math.PI; c.timer=99; }; c.say(side==='red'?'🔴':'🔵'); });
+  players.forEach((c,i)=>{ const side=i%2?'blue':'red', k=Math.floor(i/2); tug.side.set(c.key,side); c.giveUp(); c.noCollide=true; c.tugSide=side; c.tugHome=freePoint(side==='red'?-5-k*1.3:5+k*1.3, cz+(k%2?0.9:-0.9));
+    c.walkTo(c.tugHome.x, c.tugHome.z, 4); c.onArrive=()=>{ c.facing=side==='red'?0:Math.PI; c.timer=99; }; c.say(side==='red'?'🔴':'🔵'); });
   banner('🪢 RED vs BLUE — !pull',3000);
-  const t0=performance.now(); const tick=setInterval(()=>{ if(game.phase!=='running'){ clearInterval(tick); return; }
+  const teardown=()=>{ clearInterval(tick); if(tug.rope){ scene.remove(tug.rope); tug.rope=null; } tug.on=false; for(const c of players){ if(c.dead) continue; c.body.rotation.z=0; c.noCollide=false; c.tugSide=null; if(c.state==='idle') c.timer=rnd(1,3); } };
+  game.onEnd=teardown;
+  const t0=performance.now(); let lastBanner=''; const tick=setInterval(()=>{ if(game.phase!=='running') return;
     const d=tug.force.red-tug.force.blue; tug.offset=clamp(d*0.35,-4.5,4.5); rope.position.x=tug.offset;
-    for(const c of players){ if(c.dead) continue; const side=c.tugSide; const homeX=side==='red'?-5:5; c.g.position.x=clamp(homeX+tug.offset+(side==='red'?-1:1)*Math.floor([...tug.side.keys()].filter(k=>tug.side.get(k)===side).indexOf(c.key)/1)*1.3, -XMAX, XMAX); c.facing=side==='red'?0:Math.PI; c.body.rotation.z=(side==='red'?-1:1)*0.25*Math.min(1,Math.abs(d)/6); }
-    banner(`🪢 🔴 ${tug.force.red}  ${tug.offset<-0.5?'◀':tug.offset>0.5?'▶':'•'}  ${tug.force.blue} 🔵`,0);
+    for(const c of players){ if(c.dead||!c.tugHome||c.state==='walk') continue; const o=obstaclePush(clamp(c.tugHome.x+tug.offset,-XMAX,XMAX), c.tugHome.z, 0.45); c.g.position.x=clamp(o.x,-XMAX,XMAX); c.g.position.z=clamp(o.z,ZMIN,ZMAX); c.facing=c.tugSide==='red'?0:Math.PI; c.body.rotation.z=(c.tugSide==='red'?-1:1)*0.25*Math.min(1,Math.abs(d)/6); }
+    const txt=`🪢 🔴 ${tug.force.red}  ${tug.offset<-0.5?'◀':tug.offset>0.5?'▶':'•'}  ${tug.force.blue} 🔵`; if(txt!==lastBanner){ lastBanner=txt; banner(txt,0); }
     if(Math.abs(tug.offset)>=4.5 || performance.now()-t0>25000){ clearInterval(tick); const win=d===0?null:d>0?'red':'blue'; banner(win?`🪢 ${win==='red'?'🔴 RED':'🔵 BLUE'} WINS!`:'🪢 draw!',5000);
-      for(const c of players){ if(c.dead) continue; c.body.rotation.z=0; c.noCollide=false; if(win&&c.tugSide!==win){ c.play('knocked',0.8); c.say(pick(['oof','😾','aw'])); } else if(win){ c.jump(); c.say(pick(['🎉','YES','💪'])); stat(c,'wins'); } }
-      setTimeout(()=>{ scene.remove(rope); tug.rope=null; tug.on=false; game.end(); },3000); } }, 250); }
+      for(const c of players){ if(c.dead) continue; c.body.rotation.z=0; if(win&&c.tugSide!==win){ c.play('knocked',0.8); c.say(pick(['oof','😾','aw'])); } else if(win){ c.jump(); c.say(pick(['🎉','YES','💪'])); stat(c,'wins'); } }
+      setTimeout(()=>game.end(),3000); } }, 250); }
 function musicalBeds(players){ let alive=players.filter(c=>!c.dead); const cx=0, cz=(ZMIN+ZMAX)/2;
   const round=()=>{ alive=alive.filter(c=>!c.dead); if(alive.length<=1){ const w=alive[0]; if(w){ banner('🛏️ '+w.name+' wins!',5000); w.jump(); w.say('🏆'); stat(w,'wins'); } game.end(); return; }
     for(const p of [...props]) if(p.type==='catbed') removeProp(p); const n=alive.length-1;
@@ -1107,7 +1112,7 @@ function frame(now){
   for(const f of fishes){ const conf=f.userData.conf; f.userData.vy-=(conf?3:25)*dt; if(conf) f.userData.vy=Math.max(f.userData.vy,f.userData.rain?-16:-2.5); f.position.y+=f.userData.vy*dt; f.rotation.y+=dt*3; if(conf){ f.rotation.x+=dt*4; f.position.x+=Math.sin(t*3+f.position.z)*dt*1.2; } if(f.position.y<(conf?0.03:0.6)){ scene.remove(f); f.userData.gone=true; } }
   fishes=fishes.filter(f=>!f.userData.gone);
   if(vac){ const k=(now-vac.t0)/1000; vac.mesh.position.x=-XMAX-2+k*(2*XMAX+4)/8.5; vac.mesh.rotation.y+=dt*4;
-    for(const c of cats.values()) if(c.onProp&&!c.inBox&&!c.anim) c.look={x:vac.mesh.position.x,z:vac.mesh.position.z,until:t+0.5};
+    for(const c of cats.values()) if(c.onProp&&!c.inBox&&!c.anim) c.gaze={x:vac.mesh.position.x,z:vac.mesh.position.z,until:t+0.5};
     for(const c of cats.values()) if(c.riding){ c.g.position.x=vac.mesh.position.x; c.g.position.z=vac.mesh.position.z; c.g.position.y=0.35; c.facing=0; }
     for(const c of cats.values()){ const dx=c.g.position.x-vac.mesh.position.x, dz=c.g.position.z-vac.mesh.position.z, d=Math.hypot(dx,dz); if(d<1.7&&d>1e-3&&!c.onProp&&!c.riding){ c.g.position.x=clamp(c.g.position.x+dx/d*(1.7-d),-XMAX,XMAX); c.g.position.z=clamp(c.g.position.z+dz/d*(1.7-d),ZMIN,ZMAX); if(c.state!=='walk'){ c.giveUp(); c.walkTo(c.g.position.x+dx/d*3, c.g.position.z+dz/d*3, 6); c.say('!!'); } } } }
   for(const tr of treats){ if(tr.position.y>0.15){ tr.userData.vy-=25*dt; tr.position.y=Math.max(0.15,tr.position.y+tr.userData.vy*dt); tr.rotation.y+=dt*4; if(tr.position.y<=0.15){ tr.userData.landed=t;
@@ -1116,6 +1121,7 @@ function frame(now){
     else if(!tr.userData.gone){ if(t-tr.userData.landed>60){ tr.userData.gone=true; scene.remove(tr); }
       else for(const c of cats.values()) if(!c.dead&&!c.onProp&&!c.anim&&Math.hypot(c.g.position.x-tr.position.x,c.g.position.z-tr.position.z)<1.1){ eatTreat(c,tr); break; } } }   // walked right over one
   treats=treats.filter(tr=>!tr.userData.gone);  if(weather.kind && Math.random()<(weather.kind==='rain'?0.9:0.5)){ const rain=weather.kind==='rain'; const f=box(scene,rain?0.05:0.18,rain?0.5:0.18,rain?0.05:0.05,rain?0x8fc7ff:0xffffff,rnd(-XMAX-3,XMAX+3),10+rnd(0,3),rnd(ZMIN-3,ZMAX+3)); f.userData.vy=rain?-14:-1.2; f.userData.conf=true; f.userData.rain=rain; fishes.push(f); }
+  if(tug.on) for(const c of cats.values()) if(c.tugSide&&c.pullT&&now-c.pullT<400&&c.state!=='walk'){ const k=(now-c.pullT)/400; c.body.position.x=(c.tugSide==='red'?-1:1)*0.6*Math.sin(k*Math.PI); c.legs[0].rotation.z=c.legs[1].rotation.z=-1.2*Math.sin(k*Math.PI); }
   for(const p of props) if(p.label){ const v=new THREE.Vector3(p.x,1.6,p.z).project(camera); p.label.style.left=(v.x+1)/2*innerWidth+'px'; p.label.style.top=(1-v.y)/2*innerHeight+'px'; }
   if(!PLAY && AUTO_REFILL_MIN>0 && now-lastRefill>AUTO_REFILL_MIN*60000){ lastRefill=now; if(props.some(p=>p.amount!=null&&p.amount<3)){ refill(); toast('auto refill'); } }
   for(const p of props) if(p.drop){ p.mesh.position.y=Math.max(0,p.mesh.position.y-dt*16); if(p.mesh.position.y<=0) p.drop=false; }

@@ -134,7 +134,7 @@ Cats have secret likes and dislikes (a stable hash per pair, nothing to configur
 
 - `overlay/` — the OBS browser source. Single page, three.js from CDN, no build step.
   - `cats.js` — scene, `Cat` class, command parser, props, events, render loop
-  - `net.js` — websocket client; receives `chat` / `event` / `twitch` / `init` / `cooldown` / `config` / `poke`, sends `cat` / `catgone` / `props` / `zones` / `state`
+  - `net.js` — websocket client; receives `chat` / `event` / `twitch` / `init` / `cooldown` / `config` / `poke` / `vibe` / `energy` / `banner`, sends `cat` / `catgone` / `props` / `zones` / `state` / `stat` / `rel` / `pos` / `photo` / `race`
   - `?mode=play` — companion mode: no AI, mirrors `state` from the primary overlay at 8 Hz, clicks go back as `poke`
   - `style.css` — panels, name tags, speech bubbles
 - `server/` — Node, no framework

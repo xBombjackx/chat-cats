@@ -85,18 +85,19 @@ const lastCmd = new Map();   // key -> ms
 const today = () => new Date().toISOString().slice(0, 10);
 const catKey = (platform, user, id) => `${platform}:${String(id || user || 'anon').toLowerCase()}`;
 // plain chat (not commands) still matters: a rough mood signal the cats react to, and how busy chat is
-const VIBES = [[/\b(lol|lmao|haha|kekw|omegalul|😂|🤣)\b/i, 'lol'], [/\b(aw+|cute|adorable|precious|🥹|😭)\b/i, 'aww'], [/^(hi|hello|hey|yo|hii+|heyo)\b/i, 'hi'], [/^f$/i, 'f'], [/\b(gg|pog+|poggers|lets go+|hype)\b/i, 'hype'], [/\b(bye|gn|goodnight|night|cya)\b/i, 'bye']];
+const VIBES = [[/\b(lol|lmao|haha|kekw|omegalul)\b|😂|🤣/i, 'lol'], [/\b(aw+|cute|adorable|precious)\b|🥹|😭/i, 'aww'], [/^(hi|hello|hey|yo|hii+|heyo)\b/i, 'hi'], [/^f$/i, 'f'], [/\b(gg|pog+|poggers|lets go+|hype)\b/i, 'hype'], [/\b(bye|gn|goodnight|cya)\b/i, 'bye']];
 const chatWindow = [];   // timestamps of recent messages → energy
 let lastVibe = 0;
 function onPlain(msg) {
-  const now = Date.now(); chatWindow.push(now); while (chatWindow.length && chatWindow[0] < now - 60000) chatWindow.shift();
+  const now = Date.now();
   if (now - lastVibe < 4000) return;
   for (const [re, kind] of VIBES) if (re.test(msg)) { lastVibe = now; broadcast({ type: 'vibe', kind }, 'overlay'); break; }
 }
 setInterval(() => { const now = Date.now(); while (chatWindow.length && chatWindow[0] < now - 60000) chatWindow.shift(); broadcast({ type: 'energy', perMin: chatWindow.length }, 'overlay'); }, 15000);
 function onChat({ platform, user, id, msg, free }) {   // free = skip and don't consume the cooldown (paid redeems)
   msg = String(msg ?? '').trim(); user = String(user ?? 'anon').slice(0, 40) || 'anon';
-  if (!msg.startsWith('!')) { if (platform !== 'admin') onPlain(msg); return; }
+  chatWindow.push(Date.now());   // energy counts every message, commands included
+  if (!msg.startsWith('!')) { onPlain(msg); return; }
   const key = catKey(platform, user, id);
   const now = Date.now();
   if (!free && platform !== 'admin') {
