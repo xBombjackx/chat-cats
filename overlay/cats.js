@@ -345,7 +345,7 @@ class Cat {
       else { faceAt(this,t); this.play('crouch',rnd(3,6)); return; } }   // crouch ends → sneakPounce leaps off
     if(this.onProp){   // up on a perch or in a box: lounge, then eventually hop down
       const r=Math.random();
-      if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.25+0.35*this.T.ambush){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
+      if(r<0.25){ this.dismount(); } else if(this.inBox && r<0.25+0.35*this.T.ambush*CHAOS){ this.hiding=true; this.setState('loaf'); this.timer=rnd(6,14); }   // lie in wait
       else if(r<0.55){ this.setState('loaf'); this.timer=rnd(4,8); } else if(r<0.7){ this.setState('sleep'); this.timer=rnd(6,10); }
       else if(r<0.85 && !this.inBox){ this.setState('sit'); this.timer=rnd(3,6); } else if(this.inBox){ this.hiding=false; this.play('peek',2); this.say(pick(['👀','…'])); } else { this.setState('groom'); this.timer=rnd(1,2); }
       return; }
@@ -363,10 +363,10 @@ class Cat {
       const taken=props.filter(p=>(p.type==='bowl'||p.type==='water')&&p.users>=1&&p.amount>0); if(taken.length && Math.random()<0.25 && !busy){ this.goTo(pick(taken)); return; }   // hungry enough to muscle in
       const cands=props.filter(p=>p.users<(p.cap||1) && (p.amount==null||p.amount>0)); if(cands.length){ this.goTo(pick(cands)); return; } }
     const free=c=>c.state==='idle'&&!c.anim&&!c.prop&&!c.noCollide;
-    if(!busy && Math.random()<0.05*T.scrap){   // spontaneous scrap — rivals mostly, friends never
+    if(!busy && Math.random()<0.05*T.scrap*CHAOS){   // spontaneous scrap — rivals mostly, friends never
       const o=near(this,6,c=>free(c)&&!isFriend(this,c)&&(isRival(this,c)||Math.random()<0.25)); if(o){ wrestle(this,o,false); return; } }
-    if(Math.random()<0.035*T.scrap && sneak(this)) return;
-    if(Math.random()<0.03*T.scrap){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
+    if(Math.random()<0.035*T.scrap*CHAOS && sneak(this)) return;
+    if(Math.random()<0.03*T.scrap*CHAOS){ stalk(this, near(this,9,c=>free(c)&&!isFriend(this,c))); return; }
     if(Math.random()<0.5*T.follow){   // go hang out with a friend; greet on arrival
       const f=near(this,14,c=>isFriend(this,c)&&c.state!=='walk'); if(f){ const dx=this.g.position.x-f.g.position.x, dz=this.g.position.z-f.g.position.z, d=Math.hypot(dx,dz)||1;
         if(d>2.6){ this.walkTo(f.g.position.x+dx/d*1.8, f.g.position.z+dz/d*1.8); this.onArrive=()=>{ if(!f.dead&&free(f)&&Math.random()<0.5*T.greet&&Math.hypot(f.g.position.x-this.g.position.x,f.g.position.z-this.g.position.z)<3) greet(this,f); }; return; } } }
@@ -455,6 +455,7 @@ function handleChat(user, msg, key, away, lvl){
   else if(cmd==='tackle'||cmd==='fight'){ const who=(parts[0]||'').replace(/^@/,''); const o=findCat(who); if(!o||o===cat) note='who? try !tackle @name'; else if(busy) note='busy'; else { nudgeRel(cat,o,-0.08); wrestle(cat,o,false); } }
   else if(cmd==='pull'){ if(tug.on&&tug.side.has(key)){ tug.force[tug.side.get(key)]+=1; cat.play('tackle',0.4,true); note='pull!'; } else note='no tug of war on'; }
   else if(cmd==='pick'){ const n=+parts[0]; if(!roulette.on) note='no roulette running'; else if(!(n>=1&&n<=5)) note='pick 1-5'; else { roulette.picks[key]=n; cat.say('📦 '+n); note='picked '+n; } }
+  else if(cmd==='help'||cmd==='commands'){ cat.say(pick(['!meow !jump !zoomies !sleep','!pet @name · !sneak · !stalk','!cat color pattern hat size','!name !afk !follow @name','!join for games · !lick · !roll'])); note='help'; }
   else if(cmd==='level'){ cat.say(`level ${lvl||0} ${lvl>=10?'🌟':lvl>=5?'⭐':'✨'}`); note='level '+(lvl||0); }
   else if(cmd==='photo'){ note=takePhoto(user); }
   else if(cmd==='hiss'){ cat.play('arch',1.3); cat.say(voice(cat,'hiss')); }
@@ -514,7 +515,7 @@ addEventListener('keydown',e=>{ if(e.key==='Escape'){ placing=null; document.bod
 
 // ---------- streamer events ----------
 let laser=null, fishes=[], busy=false, vac=null, treats=[]; const weather={kind:null,t0:0}, roulette={on:false,picks:{},boxes:[]};
-let ENERGY=0.5, AUTO_REFILL_MIN=30, lastRefill=performance.now();   // ENERGY 0 (dead chat) … 1 (busy) from messages per minute
+let ENERGY=0.5, AUTO_REFILL_MIN=30, lastRefill=performance.now(), CHAOS=1;   // CHAOS scales fights, stalks, sneaks, ambushes (setting, 0.25–3)   // ENERGY 0 (dead chat) … 1 (busy) from messages per minute
 function setEnergy(perMin){ ENERGY=clamp(perMin/25,0,1); }
 // cats react to what chat says, not just commands
 function vibe(kind){ const list=[...cats.values()].filter(c=>!c.dead&&!c.onProp&&!c.anim&&c.state!=='sleep'); if(!list.length) return; const some=list.sort(()=>Math.random()-0.5).slice(0,1+Math.floor(list.length/3));
@@ -846,11 +847,11 @@ if(q.get('env')){ envLocked=true; setEnv(q.get('env')); }
 if(q.get('holiday')) setHoliday(q.get('holiday'));
 document.querySelectorAll('[data-holiday]').forEach(b=>b.onclick=()=>{ setHoliday(b.dataset.holiday); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({holiday:b.dataset.holiday})}).catch(()=>{}); });
 // full settings on the overlay panel (needs the server; the demo just applies the cat cap locally)
-(function(){ const F=['maxCats','cooldownMs','respawnHours','autoRefillMin'], key=q.get('key')||''; const el=id=>document.getElementById(id);
+(function(){ const F=['maxCats','cooldownMs','respawnHours','autoRefillMin','chaos'], key=q.get('key')||''; const el=id=>document.getElementById(id);
   const show=s=>{ for(const k of F) el('s-'+k).value=s[k]; el('s-predictions').checked=!!s.predictions; el('s-daynight').checked=!!s.daynight; el('s-note').textContent='saved on the server'; };
   fetch('/api/settings',{headers:{'x-key':key}}).then(r=>r.ok?r.json():Promise.reject()).then(show).catch(()=>{ el('s-note').textContent='no server here — only the cat cap applies, locally'; });
   el('savesettings').onclick=async()=>{ const body={predictions:el('s-predictions').checked?1:0, daynight:el('s-daynight').checked?1:0}; for(const k of F) body[k]=+el('s-'+k).value;
-    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay(); AUTO_REFILL_MIN=body.autoRefillMin;
+    MAX_CATS=body.maxCats||MAX_CATS; DAYNIGHT=!!body.daynight; applyTimeOfDay(); AUTO_REFILL_MIN=body.autoRefillMin; CHAOS=body.chaos||1;
     try{ const r=await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':key},body:JSON.stringify(body)}); if(r.ok){ show(await r.json()); toast('settings saved'); } else throw 0; }catch{ el('s-note').textContent='applied locally (no server)'; } }; })();
 document.querySelectorAll('[data-species]').forEach(b=>b.onclick=()=>{ SPECIES_MODE=b.dataset.species; toast('animals: '+b.dataset.species); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({species:b.dataset.species})}).catch(()=>{}); });
 document.querySelectorAll('[data-env]').forEach(b=>b.onclick=()=>{ setEnv(b.dataset.env); fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json','x-key':q.get('key')||''},body:JSON.stringify({env:b.dataset.env})}).catch(()=>{}); });
@@ -902,6 +903,7 @@ function applyInit(m){
   if(m.species) SPECIES_MODE=m.species;
   if(m.holiday!=null && !q.get('holiday')) setHoliday(m.holiday);
   if(m.autoRefillMin!=null) AUTO_REFILL_MIN=+m.autoRefillMin;
+  if(m.chaos!=null) CHAOS=+m.chaos;
   if(m.daynight!=null && q.get('daynight')==null){ DAYNIGHT=!!m.daynight; applyTimeOfDay(); }
   if(m.rels) for(const [k,v] of Object.entries(m.rels)) REL[k]=v;
   if(m.cotd){ cotdKey=m.cotd.key; setTimeout(()=>crownCotd(cats.get(cotdKey)), 800); }

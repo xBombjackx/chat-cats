@@ -53,7 +53,7 @@ Not commitments. Cross things off or reorder freely.
 - ~~Cats resume where they were~~ — *done (positions)*
 
 ## Known rough edges
-- Control panels (overlay page, press H) fit a normal window now but the compact text is hard to read. Owner said fine for now. Fix idea: tabs or a collapsible sidebar instead of shrinking everything; or move the streamer controls to `/admin` only and keep the overlay panel to the chat simulator.
+- (none open) — the control panel is tabbed and readable again as of 2026-09-13.
 
 ## Validation plan (2026-09-08)
 No channel of our own; the goal is to find out whether streamers want this for starting-soon / BRB / just-chatting screens.

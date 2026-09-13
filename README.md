@@ -128,7 +128,7 @@ Each cat also has a secret personality (chill, lazy, zoomy, clingy or grumpy) th
 
 Cats have secret likes and dislikes (a stable hash per pair, nothing to configure): friends hang out together, greet with nose boops, share bowls and play ball together; rivals hiss when close, get stalked, fight over food and start scraps. Everyone else is neutral.
 
-Per-user cooldown (a ⏳ bubble shows when a command is dropped), cat cap with least-recently-active eviction (raid visitors go first). Looks persist; cats active within the respawn window come back when the overlay reloads. Prop layout persists too. Cooldown, cap and respawn window are editable live on `/admin`; `.env` values are just the defaults.
+`!help` makes a viewer's cat list a few commands. A **chaos** setting (0.25–3) scales how often cats fight, stalk, sneak and ambush: turn it down for cozy, up for a bar fight. Per-user cooldown (a ⏳ bubble shows when a command is dropped), cat cap with least-recently-active eviction (raid visitors go first). Looks persist; cats active within the respawn window come back when the overlay reloads. Prop layout persists too. Cooldown, cap and respawn window are editable live on `/admin`; `.env` values are just the defaults.
 
 ## Layout
 

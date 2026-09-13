@@ -27,7 +27,7 @@ let oauthState = null;
 const db = openDb(path.resolve(ROOT, env('DB_PATH', 'chatcats.sqlite')));
 const status = { twitch: false, kick: false, eventsub: false, twitchUser: null, overlays: 0, players: 0 };
 // settings: .env gives defaults, /admin can change them live (stored in sqlite)
-const DEFAULTS = { predictions: +env('PREDICTIONS', 1), autoRefillMin: +env('AUTO_REFILL_MIN', 30), daynight: +env('DAYNIGHT', 0), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
+const DEFAULTS = { predictions: +env('PREDICTIONS', 1), autoRefillMin: +env('AUTO_REFILL_MIN', 30), chaos: +env('CHAOS', 1), daynight: +env('DAYNIGHT', 0), cooldownMs: +env('COOLDOWN_MS', 2500), maxCats: +env('MAX_CATS', 30), respawnHours: +env('RESPAWN_HOURS', 6) };
 const cfg = { ...DEFAULTS, ...db.get('settings', {}) };
 const ENVS = ['none', 'bedroom', 'kitchen', 'living', 'garden'];
 cfg.env = ENVS.includes(cfg.env) ? cfg.env : env('ENV', 'none');
@@ -36,12 +36,12 @@ const HOLIDAYS = ['none', 'halloween', 'xmas'];
 cfg.holiday = HOLIDAYS.includes(cfg.holiday) ? cfg.holiday : 'none';
 cfg.species = SPECIES_MODES.includes(cfg.species) ? cfg.species : env('SPECIES', 'cat');
 function setSettings(patch) {
-  for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = Math.max(0, Math.round(+patch[k]));
+  for (const k of Object.keys(DEFAULTS)) if (patch[k] != null && Number.isFinite(+patch[k])) cfg[k] = k === 'chaos' ? Math.max(0.25, Math.min(3, +patch[k])) : Math.max(0, Math.round(+patch[k]));
   if (ENVS.includes(patch.env)) cfg.env = patch.env;
   if (SPECIES_MODES.includes(patch.species)) cfg.species = patch.species;
   if (HOLIDAYS.includes(patch.holiday)) cfg.holiday = patch.holiday;
   db.set('settings', cfg);
-  const config = { type: 'config', maxCats: cfg.maxCats, autoRefillMin: cfg.autoRefillMin, env: cfg.env, species: cfg.species, daynight: cfg.daynight, holiday: cfg.holiday };
+  const config = { type: 'config', maxCats: cfg.maxCats, autoRefillMin: cfg.autoRefillMin, chaos: cfg.chaos, env: cfg.env, species: cfg.species, daynight: cfg.daynight, holiday: cfg.holiday };
   broadcast(config, 'overlay'); broadcast(config, 'play');
   return cfg;
 }
@@ -70,6 +70,7 @@ function initPayload() {
     species: cfg.species,
     daynight: cfg.daynight,
     autoRefillMin: cfg.autoRefillMin,
+    chaos: cfg.chaos,
     holiday: cfg.holiday,
     cats: db.recentCats(cfg.respawnHours * 3600e3, cfg.maxCats),
     props: db.get('props', null),

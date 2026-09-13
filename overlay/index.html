@@ -24,7 +24,7 @@
   <div class="row">
     <button data-m="!cat">!cat</button><button data-m="!meow">!meow</button><button data-m="!jump">!jump</button>
     <button data-m="!spin">!spin</button><button data-m="!sleep">!sleep</button><button data-m="!loaf">!loaf</button>
-    <button data-m="!wave">!wave</button><button data-m="!zoomies">!zoomies</button><button data-m="!stretch">!stretch</button><button data-m="!roll">!roll</button><button data-m="!pounce">!pounce</button><button data-m="!hiss">!hiss</button><button data-m="!shake">!shake</button><button data-m="!stalk">!stalk</button><button data-m="!sneak">!sneak</button><button data-m="!lick">!lick</button><button data-m="!join">!join</button><button data-m="!level">!level</button><button data-m="!pick 3">!pick 3</button><button data-m="!pull">!pull</button><button data-m="!photo">!photo</button><button data-m="!afk">!afk</button><button data-m="!follow @void_enjoyer">!follow @user</button><button data-m="!pet @void_enjoyer">!pet @user</button><button data-m="!tackle @void_enjoyer">!tackle @user</button><button data-m="!leave">!leave</button>
+    <button data-m="!wave">!wave</button><button data-m="!zoomies">!zoomies</button><button data-m="!stretch">!stretch</button><button data-m="!roll">!roll</button><button data-m="!pounce">!pounce</button><button data-m="!hiss">!hiss</button><button data-m="!shake">!shake</button><button data-m="!stalk">!stalk</button><button data-m="!sneak">!sneak</button><button data-m="!lick">!lick</button><button data-m="!join">!join</button><button data-m="!level">!level</button><button data-m="!pick 3">!pick 3</button><button data-m="!pull">!pull</button><button data-m="!help">!help</button><button data-m="!photo">!photo</button><button data-m="!afk">!afk</button><button data-m="!follow @void_enjoyer">!follow @user</button><button data-m="!pet @void_enjoyer">!pet @user</button><button data-m="!tackle @void_enjoyer">!tackle @user</button><button data-m="!leave">!leave</button>
   </div>
   <div class="row"><button id="rand5">Spawn 5 random chatters</button></div>
   <div class="hint">!cat [color] [pattern] [hat] [size] · eyes &lt;color&gt; · e.g. <i>!cat black tuxedo beanie kitten eyes green</i> · sizes: kitten skinny adult fat · in mixed mode also !dog !raccoon !otter<br>
@@ -79,12 +79,14 @@
     <div class="row" style="align-items:center">
       <label>respawn hours <input type="number" id="s-respawnHours" min="0"></label>
       <label>auto refill min <input type="number" id="s-autoRefillMin" min="0"></label>
+      <label>chaos <input type="number" id="s-chaos" min="0.25" max="3" step="0.25"></label>
     </div>
     <div class="row" style="align-items:center">
       <label><input type="checkbox" id="s-predictions"> race predictions</label>
       <label><input type="checkbox" id="s-daynight"> day/night by the clock</label>
     </div>
     <div class="row"><button id="savesettings">Save</button><span class="hint" id="s-note" style="margin:0;align-self:center">…</span></div>
+    <div class="hint">Chaos scales fights, stalks, sneak attacks and box ambushes: 0.5 is cozy, 1 is default, 2 is a bar fight.</div>
     <div class="hint">Twitch connect, channel-point rewards, usage and leaderboards: <a href="/admin" target="_blank">/admin</a>.</div>
   </section>
 </div>
